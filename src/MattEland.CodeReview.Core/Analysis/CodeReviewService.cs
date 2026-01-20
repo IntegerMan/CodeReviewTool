@@ -45,7 +45,7 @@ public sealed class CodeReviewService : ICodeReviewService
         CancellationToken cancellationToken = default)
     {
         var diff = await _gitService.GetDiffFromBaseAsync(repositoryPath, baseBranch, cancellationToken);
-        return await AnalyzeDiffAsync(diff, cancellationToken);
+        return await AnalyzeDiffAsync(diff, progressReporter: null, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -56,12 +56,13 @@ public sealed class CodeReviewService : ICodeReviewService
         CancellationToken cancellationToken = default)
     {
         var diff = await _gitService.GetDiffForFilesAsync(repositoryPath, filePaths, baseBranch, cancellationToken);
-        return await AnalyzeDiffAsync(diff, cancellationToken);
+        return await AnalyzeDiffAsync(diff, progressReporter: null, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task<ReviewResult> AnalyzeDiffAsync(
         GitDiff diff,
+        IAnalysisProgressReporter? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
         var reviewId = Guid.NewGuid().ToString("N")[..8];
@@ -81,6 +82,13 @@ public sealed class CodeReviewService : ICodeReviewService
                 .GroupBy(f => f.Language!)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
+            // Calculate total work items for progress tracking
+            var totalWorkItems = filesByLanguage.Values
+                .Sum(files => files.Count * 
+                    _ruleProvider.GetRulesByLanguage(files.First().Language!)
+                        .Count(r => r.Enabled && !string.IsNullOrEmpty(r.PromptContent)));
+            var currentWorkItem = 0;
+
             foreach (var (language, files) in filesByLanguage)
             {
                 var rules = _ruleProvider.GetRulesByLanguage(language)
@@ -90,15 +98,26 @@ public sealed class CodeReviewService : ICodeReviewService
                 _logger.LogDebug("Analyzing {FileCount} {Language} files with {RuleCount} rules",
                     files.Count, language, rules.Count);
 
+                var fileIndex = 0;
                 foreach (var rule in rules)
                 {
                     appliedRules.Add(rule);
+                    var ruleIndex = rules.IndexOf(rule);
                     
                     foreach (var file in files)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
+                        currentWorkItem++;
+                        fileIndex++;
                         
-                        var (issues, error) = await AnalyzeFileWithRuleAsync(file, rule, cancellationToken);
+                        // Report progress
+                        progressReporter?.ReportProgress(
+                            fileIndex, files.Count, 
+                            ruleIndex + 1, rules.Count,
+                            file.Path, rule.Id);
+                        
+                        var (issues, error) = await AnalyzeFileWithRuleAsync(
+                            file, rule, progressReporter, cancellationToken);
                         allIssues.AddRange(issues);
                         
                         if (!string.IsNullOrEmpty(error))
@@ -152,6 +171,7 @@ public sealed class CodeReviewService : ICodeReviewService
     private async Task<(IEnumerable<Issue> Issues, string? Error)> AnalyzeFileWithRuleAsync(
         FileChange file,
         Rule rule,
+        IAnalysisProgressReporter? progressReporter,
         CancellationToken cancellationToken)
     {
         try
@@ -176,6 +196,10 @@ public sealed class CodeReviewService : ICodeReviewService
 
             _logger.LogDebug("Analyzing {Path} with rule {RuleId}", file.Path, rule.Id);
 
+            // Report LLM request
+            var requestPreview = TruncateForDisplay(renderedPrompt, 500);
+            progressReporter?.ReportLlmRequest(file.Path, rule.Id, requestPreview);
+
             // Get a fresh client with the latest configuration
             var chatClient = _chatClientFactory.CreateClient();
             var response = await chatClient.GetResponseAsync(
@@ -186,7 +210,12 @@ public sealed class CodeReviewService : ICodeReviewService
                 cancellationToken: cancellationToken);
 
             var responseText = response.Text ?? string.Empty;
-            return (ParseIssuesFromResponse(responseText, file.Path, rule), null);
+            
+            // Report LLM response
+            var responsePreview = TruncateForDisplay(responseText, 500);
+            progressReporter?.ReportLlmResponse(file.Path, rule.Id, responsePreview);
+            
+            return (ParseIssuesFromResponse(responseText, file.Path, rule, progressReporter), null);
         }
         catch (Exception ex)
         {
@@ -222,7 +251,11 @@ public sealed class CodeReviewService : ICodeReviewService
         IMPORTANT: Only output valid JSON. Do not include any text before or after the JSON array.
         """;
 
-    private IEnumerable<Issue> ParseIssuesFromResponse(string response, string filePath, Rule rule)
+    private IEnumerable<Issue> ParseIssuesFromResponse(
+        string response, 
+        string filePath, 
+        Rule rule, 
+        IAnalysisProgressReporter? progressReporter)
     {
         try
         {
@@ -256,10 +289,25 @@ public sealed class CodeReviewService : ICodeReviewService
         }
         catch (JsonException ex)
         {
+            var errorMessage = $"JSON parsing error: {ex.Message}";
+            var responsePreview = TruncateForDisplay(response, 1000);
+            
             _logger.LogWarning(ex, "Failed to parse LLM response as JSON: {Response}", 
                 response.Length > 200 ? response[..200] + "..." : response);
+            
+            // Report JSON parsing error
+            progressReporter?.ReportJsonParsingError(filePath, rule.Id, errorMessage, responsePreview);
+            
             return [];
         }
+    }
+
+    private static string TruncateForDisplay(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength)
+            return text;
+        
+        return text[..maxLength] + $"\n... (truncated, {text.Length - maxLength} more characters)";
     }
 
     private static string ExtractJson(string response)

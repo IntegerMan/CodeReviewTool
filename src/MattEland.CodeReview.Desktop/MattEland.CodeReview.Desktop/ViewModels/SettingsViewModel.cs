@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Text.Json;
+using MattEland.CodeReview.Desktop.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -11,13 +12,13 @@ namespace MattEland.CodeReview.Desktop.ViewModels;
 public partial class SettingsViewModel : ObservableObject
 {
     private readonly IOptions<CodeReviewOptions> _options;
-    private readonly IConfiguration _configuration;
+    private readonly IUserSettingsService _settingsService;
     private CodeReviewOptions _originalOptions;
 
-    public SettingsViewModel(IOptions<CodeReviewOptions> options, IConfiguration configuration)
+    public SettingsViewModel(IOptions<CodeReviewOptions> options, IUserSettingsService settingsService)
     {
         _options = options;
-        _configuration = configuration;
+        _settingsService = settingsService;
         _originalOptions = options.Value;
         LoadFromOptions();
     }
@@ -160,11 +161,11 @@ public partial class SettingsViewModel : ObservableObject
     /// Saves the current settings.
     /// </summary>
     [RelayCommand]
-    private void SaveSettings()
+    private async Task SaveSettingsAsync()
     {
         try
         {
-            // Update the options object
+            // Update the in-memory options object
             var options = _options.Value;
             
             options.Provider = SelectedProvider;
@@ -187,101 +188,45 @@ public partial class SettingsViewModel : ObservableObject
             options.CustomPromptPaths.Clear();
             options.CustomPromptPaths.AddRange(CustomPromptPaths);
 
-            // Persist to appsettings.json so IOptionsMonitor picks up the changes
-            PersistToAppSettings();
+            // Persist to user settings file
+            await PersistToUserSettingsAsync();
 
-            StatusMessage = "Settings saved successfully.";
+            ShowToastNotification(true, "Settings Saved", "Your settings have been saved successfully.");
             HasChanges = false;
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Failed to save settings: {ex.Message}";
+            ShowToastNotification(false, "Save Failed", $"Failed to save settings: {ex.Message}");
         }
     }
 
-    private void PersistToAppSettings()
+    private async Task PersistToUserSettingsAsync()
     {
-        try
-        {
-            var appSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-            
-            // Build the CodeReview section
-            var codeReviewSection = new
-            {
-                Provider = SelectedProvider,
-                AzureOpenAI = new
-                {
-                    Endpoint = AzureEndpoint,
-                    DeploymentName = AzureDeploymentName,
-                    ApiKey = AzureApiKey
-                },
-                OpenAI = new
-                {
-                    ApiKey = OpenAIApiKey,
-                    Model = OpenAIModel,
-                    OrganizationId = string.IsNullOrWhiteSpace(OpenAIOrganizationId) ? (string?)null : OpenAIOrganizationId
-                },
-                Ollama = new
-                {
-                    Endpoint = OllamaEndpoint,
-                    Model = OllamaModel
-                },
-                Git = new
-                {
-                    DefaultBaseBranch = DefaultBaseBranch,
-                    MaxFilesPerReview = MaxFilesPerReview,
-                    MaxDiffSizePerFile = MaxDiffSizePerFile
-                },
-                CustomPromptPaths = CustomPromptPaths.ToArray()
-            };
+        // Update the user settings with current values
+        var settings = _settingsService.Settings;
+        
+        settings.CodeReview.Provider = SelectedProvider;
+        
+        settings.CodeReview.AzureOpenAI.Endpoint = AzureEndpoint;
+        settings.CodeReview.AzureOpenAI.DeploymentName = AzureDeploymentName;
+        settings.CodeReview.AzureOpenAI.ApiKey = AzureApiKey;
+        
+        settings.CodeReview.OpenAI.ApiKey = OpenAIApiKey;
+        settings.CodeReview.OpenAI.Model = OpenAIModel;
+        settings.CodeReview.OpenAI.OrganizationId = string.IsNullOrWhiteSpace(OpenAIOrganizationId) ? null : OpenAIOrganizationId;
+        
+        settings.CodeReview.Ollama.Endpoint = OllamaEndpoint;
+        settings.CodeReview.Ollama.Model = OllamaModel;
+        
+        settings.CodeReview.Git.DefaultBaseBranch = DefaultBaseBranch;
+        settings.CodeReview.Git.MaxFilesPerReview = MaxFilesPerReview;
+        settings.CodeReview.Git.MaxDiffSizePerFile = MaxDiffSizePerFile;
+        
+        settings.CodeReview.CustomPromptPaths.Clear();
+        settings.CodeReview.CustomPromptPaths.AddRange(CustomPromptPaths);
 
-            // Read existing appsettings.json and update CodeReview section
-            string json;
-            if (File.Exists(appSettingsPath))
-            {
-                var existingContent = File.ReadAllText(appSettingsPath);
-                var existingDoc = JsonDocument.Parse(existingContent);
-                var rootDict = new Dictionary<string, JsonElement>();
-                
-                // Copy all existing sections
-                foreach (var prop in existingDoc.RootElement.EnumerateObject())
-                {
-                    rootDict[prop.Name] = prop.Value;
-                }
-                
-                // Update CodeReview section
-                var codeReviewJson = JsonSerializer.Serialize(codeReviewSection);
-                rootDict["CodeReview"] = JsonDocument.Parse(codeReviewJson).RootElement;
-                
-                // Convert back to JSON string
-                json = JsonSerializer.Serialize(rootDict, new JsonSerializerOptions 
-                { 
-                    WriteIndented = true,
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-                });
-            }
-            else
-            {
-                // Create new file with just CodeReview section
-                var root = new Dictionary<string, object?>
-                {
-                    ["CodeReview"] = codeReviewSection
-                };
-                json = JsonSerializer.Serialize(root, new JsonSerializerOptions 
-                { 
-                    WriteIndented = true,
-                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-                });
-            }
-
-            // Write back to file
-            File.WriteAllText(appSettingsPath, json);
-        }
-        catch (Exception ex)
-        {
-            // Log but don't fail - in-memory update still works
-            System.Diagnostics.Debug.WriteLine($"Failed to persist settings to appsettings.json: {ex.Message}");
-        }
+        // Save to file
+        await _settingsService.SaveAsync();
     }
 
     /// <summary>

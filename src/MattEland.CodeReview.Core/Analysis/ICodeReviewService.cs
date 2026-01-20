@@ -37,9 +37,11 @@ public interface ICodeReviewService
     /// Analyzes a pre-computed git diff.
     /// </summary>
     /// <param name="diff">The diff to analyze.</param>
+    /// <param name="progressReporter">Optional progress reporter for detailed updates.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The review result containing all detected issues.</returns>
     Task<ReviewResult> AnalyzeDiffAsync(
         GitDiff diff,
+        IAnalysisProgressReporter? progressReporter = null,
         CancellationToken cancellationToken = default);
 }

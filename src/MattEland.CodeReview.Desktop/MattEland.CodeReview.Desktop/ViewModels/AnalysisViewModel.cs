@@ -249,7 +249,18 @@ public partial class AnalysisViewModel : ObservableObject
             ProgressMessage = "Running LLM analysis...";
             AddLog("Sending to LLM for analysis...", AnalysisLogLevel.Info);
 
-            var result = await _codeReviewService.AnalyzeDiffAsync(diff, cancellationToken);
+            // Calculate total work items for progress tracking
+            var totalWorkItems = diff.Files
+                .Where(f => !string.IsNullOrEmpty(f.Language))
+                .GroupBy(f => f.Language!)
+                .Sum(g => g.Count() * _ruleProvider.GetRulesByLanguage(g.Key)
+                    .Count(r => r.Enabled && !string.IsNullOrEmpty(r.PromptContent)));
+
+            // Create progress reporter
+            var progressReporter = new AnalysisProgressReporter(this);
+            progressReporter.SetTotalWorkItems(totalWorkItems);
+
+            var result = await _codeReviewService.AnalyzeDiffAsync(diff, progressReporter, cancellationToken);
 
             CurrentResult = result;
             UpdateGroupedIssues();
@@ -293,7 +304,10 @@ public partial class AnalysisViewModel : ObservableObject
         }
     }
 
-    private void AddLog(string message, AnalysisLogLevel level)
+    /// <summary>
+    /// Adds a log entry to the analysis log. Public for use by AnalysisProgressReporter.
+    /// </summary>
+    public void AddLog(string message, AnalysisLogLevel level)
     {
         AnalysisLog.Add(new AnalysisLogEntry
         {

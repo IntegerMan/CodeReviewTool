@@ -1,3 +1,4 @@
+using MattEland.CodeReview.Desktop.Services;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 
@@ -11,15 +12,18 @@ public partial class HomeViewModel : ObservableObject
     private readonly MainViewModel _mainViewModel;
     private readonly IGitService _gitService;
     private readonly IRuleProvider _ruleProvider;
+    private readonly IUserSettingsService _settingsService;
 
     public HomeViewModel(
         MainViewModel mainViewModel, 
         IGitService gitService, 
-        IRuleProvider ruleProvider)
+        IRuleProvider ruleProvider,
+        IUserSettingsService settingsService)
     {
         _mainViewModel = mainViewModel;
         _gitService = gitService;
         _ruleProvider = ruleProvider;
+        _settingsService = settingsService;
         LoadRecentRepositories();
     }
 
@@ -83,7 +87,7 @@ public partial class HomeViewModel : ObservableObject
         var folder = await folderPicker.PickSingleFolderAsync();
         if (folder != null)
         {
-            OpenRepository(folder.Path);
+            await OpenRepositoryAsync(folder.Path);
         }
     }
 
@@ -91,11 +95,11 @@ public partial class HomeViewModel : ObservableObject
     /// Opens a repository from a path.
     /// </summary>
     [RelayCommand]
-    private void OpenRepository(string path)
+    private async Task OpenRepositoryAsync(string path)
     {
         if (_mainViewModel.TrySetRepository(path))
         {
-            AddToRecentRepositories(path);
+            await AddToRecentRepositoriesAsync(path);
             OnPropertyChanged(nameof(HasRepository));
             OnPropertyChanged(nameof(RepositoryPath));
             OnPropertyChanged(nameof(RepositoryDisplayName));
@@ -107,10 +111,10 @@ public partial class HomeViewModel : ObservableObject
     /// Removes a repository from the recent list.
     /// </summary>
     [RelayCommand]
-    private void RemoveFromRecent(RecentRepository repo)
+    private async Task RemoveFromRecentAsync(RecentRepository repo)
     {
         RecentRepositories.Remove(repo);
-        SaveRecentRepositories();
+        await _settingsService.RemoveRecentRepositoryAsync(repo.Path);
     }
 
     /// <summary>
@@ -122,7 +126,7 @@ public partial class HomeViewModel : ObservableObject
         _mainViewModel.RequestNavigateToAnalysis();
     }
 
-    private void AddToRecentRepositories(string path)
+    private async Task AddToRecentRepositoriesAsync(string path)
     {
         var existing = RecentRepositories.FirstOrDefault(r => 
             string.Equals(r.Path, path, StringComparison.OrdinalIgnoreCase));
@@ -145,24 +149,39 @@ public partial class HomeViewModel : ObservableObject
             LastOpened = DateTime.Now
         });
 
-        // Keep only the last 10
-        while (RecentRepositories.Count > 10)
+        // Keep only the last 8 (settings service enforces this limit too)
+        while (RecentRepositories.Count > 8)
         {
             RecentRepositories.RemoveAt(RecentRepositories.Count - 1);
         }
 
-        SaveRecentRepositories();
+        // Persist to settings
+        await _settingsService.AddRecentRepositoryAsync(path, branch);
     }
 
     private void LoadRecentRepositories()
     {
-        // TODO: Load from local storage/settings
-        // For now, start with empty list
-    }
+        RecentRepositories.Clear();
+        
+        foreach (var entry in _settingsService.GetRecentRepositories())
+        {
+            var displayName = Path.GetFileName(entry.Path) ?? entry.Path;
+            
+            // Update branch info if the repository still exists
+            string? currentBranch = entry.LastBranch;
+            if (_gitService.IsValidRepository(entry.Path))
+            {
+                currentBranch = _gitService.GetCurrentBranch(entry.Path);
+            }
 
-    private void SaveRecentRepositories()
-    {
-        // TODO: Save to local storage/settings
+            RecentRepositories.Add(new RecentRepository
+            {
+                Path = entry.Path,
+                DisplayName = displayName,
+                LastBranch = currentBranch,
+                LastOpened = entry.LastOpened
+            });
+        }
     }
 }
 

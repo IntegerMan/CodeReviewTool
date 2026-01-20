@@ -7,6 +7,9 @@ namespace MattEland.CodeReview.Desktop;
 
 public partial class App : Application
 {
+    private const string AppFolderName = "MattEland.CodeReview";
+    private const string SettingsFileName = "settings.json";
+
     /// <summary>
     /// Gets the service provider for the application.
     /// </summary>
@@ -31,8 +34,12 @@ public partial class App : Application
         var host = CreateHostBuilder().Build();
         Services = host.Services;
 
-        // Initialize rule provider
+        // Initialize rule provider and load user settings
         await Services.InitializeCodeReviewAsync();
+        
+        // Load user settings from local storage
+        var settingsService = Services.GetRequiredService<IUserSettingsService>();
+        await settingsService.LoadAsync();
 
         MainWindow = new Window();
 #if DEBUG
@@ -66,6 +73,11 @@ public partial class App : Application
             {
                 config.SetBasePath(AppContext.BaseDirectory);
                 config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+                
+                // Add user settings file as a configuration source (overrides appsettings.json)
+                var userSettingsPath = GetUserSettingsFilePath();
+                config.AddJsonFile(userSettingsPath, optional: true, reloadOnChange: true);
+                
                 config.AddEnvironmentVariables("CODEREVIEW_");
             })
             .ConfigureServices((context, services) =>
@@ -73,10 +85,13 @@ public partial class App : Application
                 // Add code review core services
                 services.AddCodeReview(context.Configuration);
 
+                // Add user settings service
+                services.AddSingleton<IUserSettingsService, UserSettingsService>();
+
                 // Add ViewModels
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<HomeViewModel>();
-                services.AddTransient<AnalysisViewModel>();
+                services.AddSingleton<AnalysisViewModel>();
                 services.AddTransient<RulesViewModel>();
                 services.AddTransient<SettingsViewModel>();
 
@@ -90,6 +105,15 @@ public partial class App : Application
                     builder.SetMinimumLevel(LogLevel.Information);
                 });
             });
+    }
+
+    /// <summary>
+    /// Gets the path to the user settings file.
+    /// </summary>
+    private static string GetUserSettingsFilePath()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(localAppData, AppFolderName, SettingsFileName);
     }
 
     /// <summary>
