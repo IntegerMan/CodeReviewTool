@@ -653,6 +653,15 @@ public partial class AnalysisViewModel : ObservableObject
         }
         return null;
     }
+
+    /// <summary>
+    /// Requests navigation to the Home page.
+    /// </summary>
+    [RelayCommand]
+    private void RequestNavigateToHome()
+    {
+        _mainViewModel.RequestNavigateToHome();
+    }
 }
 
 /// <summary>

@@ -16,46 +16,63 @@
             <muxc:Expander.Header>
                 <Grid Padding="4,8" ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/> <!-- Severity Dot -->
+                        <ColumnDefinition Width="Auto"/> <!-- Rule ID -->
+                        <ColumnDefinition Width="Auto"/> <!-- Line Number -->
+                        <ColumnDefinition Width="*"/>    <!-- Message -->
+                        <ColumnDefinition Width="Auto"/> <!-- Severity Badge -->
                     </Grid.ColumnDefinitions>
 
                     <!-- Severity Indicator -->
                     <Border Grid.Column="0"
                             Width="6" Height="6"
                             CornerRadius="3"
-                            VerticalAlignment="Center">
+                            VerticalAlignment="Center"
+                            Margin="0,0,12,0">
                         <Border.Background>
                             <SolidColorBrush x:Name="SeverityBrush"/>
                         </Border.Background>
                     </Border>
 
-                    <!-- Line Number -->
+                    <!-- Rule ID -->
                     <Border Grid.Column="1"
                             Background="{ThemeResource ControlFillColorTertiaryBrush}"
                             CornerRadius="3"
                             Padding="6,2"
+                            Margin="0,0,8,0">
+                        <TextBlock Text="{x:Bind Issue.RuleId, Mode=OneWay}"
+                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                   FontFamily="Consolas"
+                                   FontSize="11"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </Border>
+
+                    <!-- Line Number -->
+                    <Border Grid.Column="2"
+                            Background="{ThemeResource ControlFillColorTertiaryBrush}"
+                            CornerRadius="3"
+                            Padding="6,2"
+                            Margin="0,0,12,0"
                             Visibility="{x:Bind local:IssueCard.HasLine(Issue.StartLine), Mode=OneWay}">
                         <TextBlock Style="{ThemeResource CaptionTextBlockStyle}"
                                    FontFamily="Consolas"
                                    FontSize="11">
-                            <Run Text="Line"/>
+                            <Run Text="Ln"/>
                             <Run Text="{x:Bind Issue.StartLine, Mode=OneWay}"/>
                         </TextBlock>
                     </Border>
 
                     <!-- Message -->
-                    <TextBlock Grid.Column="2"
+                    <TextBlock Grid.Column="3"
                                Text="{x:Bind Issue.Message, Mode=OneWay}"
                                Style="{ThemeResource BodyTextBlockStyle}"
                                TextWrapping="NoWrap"
                                TextTrimming="CharacterEllipsis"
-                               VerticalAlignment="Center"/>
+                               VerticalAlignment="Center"
+                               Margin="0,0,12,0"/>
 
                     <!-- Severity Badge -->
-                    <Border Grid.Column="3"
+                    <Border Grid.Column="4"
                             CornerRadius="4"
                             Padding="8,4"
                             VerticalAlignment="Center">
@@ -107,20 +124,25 @@
                     </StackPanel>
 
                     <!-- Code Snippet -->
-                    <StackPanel Spacing="4" 
+                    <StackPanel Spacing="8" 
                                 Visibility="{x:Bind local:IssueCard.HasText(Issue.CodeSnippet), Mode=OneWay}">
-                        <TextBlock Text="Code Snippet"
+                        <TextBlock Text="Code Context"
                                    Style="{ThemeResource CaptionTextBlockStyle}"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                        <Border Background="{ThemeResource ControlFillColorTertiaryBrush}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   FontWeight="SemiBold"/>
+                        <Border Background="{ThemeResource LayerFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
                                 CornerRadius="4"
-                                Padding="12,8">
+                                Padding="16,12">
                             <ScrollViewer HorizontalScrollBarVisibility="Auto" 
                                           VerticalScrollBarVisibility="Disabled">
                                 <TextBlock Text="{x:Bind Issue.CodeSnippet, Mode=OneWay}"
                                            FontFamily="Consolas"
-                                           FontSize="12"
-                                           TextWrapping="NoWrap"/>
+                                           FontSize="13"
+                                           LineHeight="20"
+                                           TextWrapping="NoWrap"
+                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                             </ScrollViewer>
                         </Border>
                     </StackPanel>

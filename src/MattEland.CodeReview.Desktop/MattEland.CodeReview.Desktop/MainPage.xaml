@@ -30,7 +30,7 @@
                     </muxc:NavigationViewItem.InfoBadge>
                 </muxc:NavigationViewItem>
                 
-                <muxc:NavigationViewItem Content="Analysis" Tag="AnalysisPage">
+                <muxc:NavigationViewItem Content="Code Analysis" Tag="AnalysisPage">
                     <muxc:NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE9D9;"/>
                     </muxc:NavigationViewItem.Icon>
@@ -44,9 +44,20 @@
             </muxc:NavigationView.MenuItems>
 
             <muxc:NavigationView.PaneFooter>
-                <StackPanel Orientation="Horizontal" 
-                            Margin="0,0,12,0"
-                            Spacing="8">
+                <StackPanel Orientation="Vertical" 
+                            Margin="12,0,12,12"
+                            Spacing="12">
+                    
+                    <Button Command="{x:Bind ViewModel.StartNewAnalysisCommand}"
+                            HorizontalAlignment="Stretch"
+                            Style="{ThemeResource AccentButtonStyle}"
+                            Visibility="{x:Bind ViewModel.HasRepository, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE710;" FontSize="14"/>
+                            <TextBlock Text="New Analysis"/>
+                        </StackPanel>
+                    </Button>
+
                     <!-- Repository indicator -->
                     <StackPanel Orientation="Horizontal" 
                                 Spacing="6"
@@ -58,13 +69,6 @@
                         <TextBlock Text="{x:Bind ViewModel.RepositoryDisplayName, Mode=OneWay}"
                                    VerticalAlignment="Center"
                                    Style="{ThemeResource CaptionTextBlockStyle}"/>
-                        <Border Background="{ThemeResource SystemAccentColorLight2}"
-                                CornerRadius="4"
-                                Padding="6,2">
-                            <TextBlock Text="{x:Bind ViewModel.CurrentBranch, Mode=OneWay}"
-                                       Style="{ThemeResource CaptionTextBlockStyle}"
-                                       Foreground="{ThemeResource SystemAccentColorDark1}"/>
-                        </Border>
                     </StackPanel>
                 </StackPanel>
             </muxc:NavigationView.PaneFooter>

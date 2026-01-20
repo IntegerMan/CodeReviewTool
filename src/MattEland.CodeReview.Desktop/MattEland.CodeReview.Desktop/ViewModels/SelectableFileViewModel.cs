@@ -1,8 +1,13 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using MattEland.CodeReview.Core.Models;
+using System.ComponentModel;
+
 namespace MattEland.CodeReview.Desktop.ViewModels;
 
 /// <summary>
 /// ViewModel wrapper for a FileChange with selection support for the wizard.
 /// </summary>
+[Bindable(true)]
 public partial class SelectableFileViewModel : ObservableObject
 {
     public SelectableFileViewModel(FileChange fileChange)

@@ -121,6 +121,26 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- No Repository Selected State -->
+                    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" 
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1" CornerRadius="8" Padding="32"
+                            Visibility="{x:Bind helpers:AnalysisPage.Not(Wizard.HasRepository), Mode=OneWay}">
+                        <StackPanel Spacing="16" HorizontalAlignment="Center">
+                            <FontIcon Glyph="&#xE783;" FontSize="48" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                            <TextBlock Text="No repository open" Style="{ThemeResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Open a repository from the Home page to start an analysis." 
+                                       Style="{ThemeResource BodyTextBlockStyle}" HorizontalAlignment="Center"/>
+                            <Button HorizontalAlignment="Center" Margin="0,12,0,0"
+                                    Command="{Binding ViewModel.RequestNavigateToHomeCommand, ElementName=PageRoot}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE80F;" FontSize="14"/>
+                                    <TextBlock Text="Go to Home"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
                     <muxc:ProgressRing IsActive="{x:Bind Wizard.IsFetchingChanges, Mode=OneWay}" Width="32" Height="32"/>
                 </StackPanel>
             </Grid>

@@ -2,11 +2,14 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using MattEland.CodeReview.Core.Models;
 
+using System.ComponentModel;
+
 namespace MattEland.CodeReview.Desktop.ViewModels;
 
 /// <summary>
 /// Represents a node in the file tree (either a file or a folder).
 /// </summary>
+[Bindable(true)]
 public partial class FileTreeNode : ObservableObject
 {
     [ObservableProperty]

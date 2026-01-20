@@ -1,10 +1,12 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 
 namespace MattEland.CodeReview.Desktop.ViewModels;
 
 /// <summary>
 /// Represents a selectable node in the file selection wizard tree.
 /// </summary>
+[Bindable(true)]
 public partial class SelectableFileTreeNode : ObservableObject
 {
     private bool _isInternalSelectionChange;

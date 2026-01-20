@@ -279,18 +279,20 @@ public sealed class CodeReviewService : ICodeReviewService
         5. Do NOT report style issues, that's what linters are for
         
         LINE NUMBER INSTRUCTIONS:
-        The diff contains hunk headers like @@ -10,5 +12,7 @@ where +12 is the starting
-        line number in the NEW file. Count added lines (+) and context lines (space prefix)
-        from there. Return the ACTUAL SOURCE FILE line number, NOT the position in diff text.
-        
-        Example: If hunk starts @@ -1,3 +1,5 @@ and issue is on 3rd line with '+', that's line 3.
+        The diff contains hunk headers like @@ -10,5 +12,7 @@ where +12 is the starting 
+        line number in the NEW file. 
+        - You MUST calculate the correct line number for every issue.
+        - Start counting from the 'new file' start line in the hunk header.
+        - Count every line starting with '+' or ' ' (space).
+        - Do NOT count lines starting with '-'.
+        - Return the ACTUAL FILE line number.
         
         When you find issues, respond with a JSON array of objects with these fields:
-        - line: (number or null) The actual SOURCE FILE line number
-        - message: (string) A clear description of the issue
-        - suggestion: (string or null) How to fix the issue
+        - line: (number) MANDATORY. The calculated line number of the issue.
+        - message: (string) A concise, descriptive summary of the issue (e.g., "Potential N+1 query detected").
+        - suggestion: (string) A detailed explanation of the fix.
         - severity: (string) One of: info, warning, error, critical
-        - confidence: (number) Your confidence from 0.0 to 1.0 - be conservative
+        - confidence: (number) Your confidence from 0.0 to 1.0
         
         If you find no issues, respond with an empty array: []
         

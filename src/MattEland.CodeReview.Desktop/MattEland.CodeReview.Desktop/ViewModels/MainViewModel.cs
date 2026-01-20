@@ -77,8 +77,30 @@ public partial class MainViewModel : ObservableObject
     /// <summary>
     /// Requests navigation to the Analysis page.
     /// </summary>
-    public void RequestNavigateToAnalysis()
+    public void RequestNavigateToAnalysis(bool startFresh = false)
     {
+        if (startFresh)
+        {
+            var wizard = App.Services.GetRequiredService<WizardViewModel>();
+            wizard.ResetCommand.Execute(null);
+        }
         NavigationRequested?.Invoke(this, "AnalysisPage");
+    }
+
+    /// <summary>
+    /// Command to start a fresh analysis.
+    /// </summary>
+    [RelayCommand]
+    private void StartNewAnalysis()
+    {
+        RequestNavigateToAnalysis(startFresh: true);
+    }
+
+    /// <summary>
+    /// Requests navigation to the Home page.
+    /// </summary>
+    public void RequestNavigateToHome()
+    {
+        NavigationRequested?.Invoke(this, "HomePage");
     }
 }
