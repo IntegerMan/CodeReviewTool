@@ -1,17 +1,99 @@
-﻿<Page x:Class="MattEland.CodeReview.Desktop.MainPage"
+<Page x:Class="MattEland.CodeReview.Desktop.MainPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:local="using:MattEland.CodeReview.Desktop"
+      xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
       Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-  <ScrollViewer>
+
     <Grid>
-      <StackPanel
-        HorizontalAlignment="Center"
-        VerticalAlignment="Center">
-        <TextBlock AutomationProperties.AutomationId="HelloTextBlock"
-          Text="Hello Uno Platform!"
-          HorizontalAlignment="Center" />
-      </StackPanel>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Navigation Bar -->
+        <muxc:NavigationView x:Name="NavView"
+                             Grid.Row="0"
+                             Grid.RowSpan="2"
+                             PaneDisplayMode="Top"
+                             IsBackButtonVisible="Collapsed"
+                             IsSettingsVisible="True"
+                             SelectionChanged="NavView_SelectionChanged"
+                             Loaded="NavView_Loaded">
+
+            <muxc:NavigationView.MenuItems>
+                <muxc:NavigationViewItem Content="Home" Tag="HomePage" Icon="Home">
+                    <muxc:NavigationViewItem.InfoBadge>
+                        <muxc:InfoBadge x:Name="HomeInfoBadge" 
+                                        Visibility="Collapsed"/>
+                    </muxc:NavigationViewItem.InfoBadge>
+                </muxc:NavigationViewItem>
+                
+                <muxc:NavigationViewItem Content="Analysis" Tag="AnalysisPage">
+                    <muxc:NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE9D9;"/>
+                    </muxc:NavigationViewItem.Icon>
+                </muxc:NavigationViewItem>
+                
+                <muxc:NavigationViewItem Content="Rules" Tag="RulesPage">
+                    <muxc:NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8FD;"/>
+                    </muxc:NavigationViewItem.Icon>
+                </muxc:NavigationViewItem>
+            </muxc:NavigationView.MenuItems>
+
+            <muxc:NavigationView.PaneFooter>
+                <StackPanel Orientation="Horizontal" 
+                            Margin="0,0,12,0"
+                            Spacing="8">
+                    <!-- Repository indicator -->
+                    <StackPanel Orientation="Horizontal" 
+                                Spacing="6"
+                                VerticalAlignment="Center"
+                                Visibility="{x:Bind ViewModel.HasRepository, Mode=OneWay}">
+                        <FontIcon Glyph="&#xE8B7;" 
+                                  FontSize="14"
+                                  Foreground="{ThemeResource SystemAccentColor}"/>
+                        <TextBlock Text="{x:Bind ViewModel.RepositoryDisplayName, Mode=OneWay}"
+                                   VerticalAlignment="Center"
+                                   Style="{ThemeResource CaptionTextBlockStyle}"/>
+                        <Border Background="{ThemeResource SystemAccentColorLight2}"
+                                CornerRadius="4"
+                                Padding="6,2">
+                            <TextBlock Text="{x:Bind ViewModel.CurrentBranch, Mode=OneWay}"
+                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource SystemAccentColorDark1}"/>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </muxc:NavigationView.PaneFooter>
+
+            <!-- Content Frame -->
+            <Frame x:Name="ContentFrame" 
+                   Padding="24,16,24,24"
+                   NavigationFailed="ContentFrame_NavigationFailed"/>
+        </muxc:NavigationView>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2"
+                Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}"
+                Padding="12,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+                           Style="{ThemeResource CaptionTextBlockStyle}"
+                           VerticalAlignment="Center"/>
+                
+                <muxc:ProgressRing Grid.Column="1"
+                                   IsActive="{x:Bind ViewModel.IsBusy, Mode=OneWay}"
+                                   Width="16" Height="16"
+                                   Visibility="{x:Bind ViewModel.IsBusy, Mode=OneWay}"/>
+            </Grid>
+        </Border>
     </Grid>
-  </ScrollViewer>
 </Page>

@@ -18,7 +18,7 @@ public sealed class CodeReviewService : ICodeReviewService
     private readonly IGitService _gitService;
     private readonly IRuleProvider _ruleProvider;
     private readonly IPromptLoader _promptLoader;
-    private readonly IChatClient _chatClient;
+    private readonly ChatClientFactory _chatClientFactory;
     private readonly CodeReviewOptions _options;
     private readonly ILogger<CodeReviewService> _logger;
 
@@ -26,14 +26,14 @@ public sealed class CodeReviewService : ICodeReviewService
         IGitService gitService,
         IRuleProvider ruleProvider,
         IPromptLoader promptLoader,
-        IChatClient chatClient,
+        ChatClientFactory chatClientFactory,
         IOptions<CodeReviewOptions> options,
         ILogger<CodeReviewService> logger)
     {
         _gitService = gitService;
         _ruleProvider = ruleProvider;
         _promptLoader = promptLoader;
-        _chatClient = chatClient;
+        _chatClientFactory = chatClientFactory;
         _options = options.Value;
         _logger = logger;
     }
@@ -68,6 +68,7 @@ public sealed class CodeReviewService : ICodeReviewService
         var startedAt = DateTimeOffset.UtcNow;
         var allIssues = new List<Issue>();
         var appliedRules = new List<Rule>();
+        var errors = new List<string>();
 
         _logger.LogInformation("Starting review {ReviewId} with {FileCount} files",
             reviewId, diff.Files.Count);
@@ -97,11 +98,26 @@ public sealed class CodeReviewService : ICodeReviewService
                     {
                         cancellationToken.ThrowIfCancellationRequested();
                         
-                        var issues = await AnalyzeFileWithRuleAsync(file, rule, cancellationToken);
+                        var (issues, error) = await AnalyzeFileWithRuleAsync(file, rule, cancellationToken);
                         allIssues.AddRange(issues);
+                        
+                        if (!string.IsNullOrEmpty(error))
+                        {
+                            errors.Add(error);
+                        }
                     }
                 }
             }
+
+            // If we have model errors, mark as failed
+            var modelErrors = errors.Where(e => e.Contains("model", StringComparison.OrdinalIgnoreCase) || 
+                                                e.Contains("not found", StringComparison.OrdinalIgnoreCase)).ToList();
+            
+            var errorMessage = modelErrors.Count > 0 
+                ? string.Join("; ", modelErrors.Distinct().Take(3))
+                : errors.Count > 0 
+                    ? $"{errors.Count} error(s) occurred during analysis. Check logs for details."
+                    : null;
 
             return new ReviewResult
             {
@@ -111,7 +127,8 @@ public sealed class CodeReviewService : ICodeReviewService
                 Diff = diff,
                 Issues = allIssues,
                 AppliedRules = appliedRules,
-                IsSuccess = true
+                IsSuccess = modelErrors.Count == 0,
+                ErrorMessage = errorMessage
             };
         }
         catch (Exception ex)
@@ -132,7 +149,7 @@ public sealed class CodeReviewService : ICodeReviewService
         }
     }
 
-    private async Task<IEnumerable<Issue>> AnalyzeFileWithRuleAsync(
+    private async Task<(IEnumerable<Issue> Issues, string? Error)> AnalyzeFileWithRuleAsync(
         FileChange file,
         Rule rule,
         CancellationToken cancellationToken)
@@ -159,7 +176,9 @@ public sealed class CodeReviewService : ICodeReviewService
 
             _logger.LogDebug("Analyzing {Path} with rule {RuleId}", file.Path, rule.Id);
 
-            var response = await _chatClient.GetResponseAsync(
+            // Get a fresh client with the latest configuration
+            var chatClient = _chatClientFactory.CreateClient();
+            var response = await chatClient.GetResponseAsync(
                 [
                     new ChatMessage(ChatRole.System, GetSystemPrompt()),
                     new ChatMessage(ChatRole.User, renderedPrompt)
@@ -167,12 +186,23 @@ public sealed class CodeReviewService : ICodeReviewService
                 cancellationToken: cancellationToken);
 
             var responseText = response.Text ?? string.Empty;
-            return ParseIssuesFromResponse(responseText, file.Path, rule);
+            return (ParseIssuesFromResponse(responseText, file.Path, rule), null);
         }
         catch (Exception ex)
         {
+            var errorMessage = ex.Message;
+            
+            // Check for model-specific errors
+            if (errorMessage.Contains("model", StringComparison.OrdinalIgnoreCase) && 
+                errorMessage.Contains("not found", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogError(ex, "Model error while analyzing {Path} with rule {RuleId}: {Error}", 
+                    file.Path, rule.Id, errorMessage);
+                return ([], errorMessage);
+            }
+            
             _logger.LogWarning(ex, "Failed to analyze {Path} with rule {RuleId}", file.Path, rule.Id);
-            return [];
+            return ([], null);
         }
     }
 

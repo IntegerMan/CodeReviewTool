@@ -21,12 +21,30 @@ public sealed class GitService : IGitService
             var baseBranchRef = repo.Branches[baseBranch] 
                 ?? throw new InvalidOperationException($"Branch '{baseBranch}' not found");
             
-            var headCommit = repo.Head.Tip;
             var baseCommit = baseBranchRef.Tip;
+            var allChanges = new Dictionary<string, PatchEntryChanges>();
             
-            var diff = repo.Diff.Compare<Patch>(baseCommit.Tree, headCommit.Tree);
+            // First, get committed changes between base branch and current HEAD
+            var headCommit = repo.Head.Tip;
+            if (headCommit != null && baseCommit != null)
+            {
+                var committedDiff = repo.Diff.Compare<Patch>(baseCommit.Tree, headCommit.Tree);
+                foreach (var entry in committedDiff)
+                {
+                    allChanges[entry.Path] = entry;
+                }
+            }
             
-            return CreateGitDiff(diff, baseBranch, repo.Head.FriendlyName);
+            // Then, include uncommitted working directory changes (staged + unstaged)
+            // Compare base branch to working directory to capture everything
+            var workingDiff = repo.Diff.Compare<Patch>(baseCommit?.Tree, DiffTargets.Index | DiffTargets.WorkingDirectory);
+            foreach (var entry in workingDiff)
+            {
+                // Working directory changes take precedence (they're more recent)
+                allChanges[entry.Path] = entry;
+            }
+            
+            return CreateGitDiff(allChanges.Values, baseBranch, repo.Head.FriendlyName + " (with working changes)");
         }, cancellationToken);
     }
 

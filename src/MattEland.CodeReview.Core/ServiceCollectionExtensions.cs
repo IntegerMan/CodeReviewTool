@@ -39,7 +39,6 @@ public static class ServiceCollectionExtensions
         
         // AI client factory
         services.AddSingleton<ChatClientFactory>();
-        services.AddSingleton<IChatClient>(sp => sp.GetRequiredService<ChatClientFactory>().CreateClient());
         
         // Analysis service
         services.AddSingleton<ICodeReviewService, CodeReviewService>();

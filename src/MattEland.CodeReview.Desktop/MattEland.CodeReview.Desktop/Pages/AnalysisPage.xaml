@@ -1,0 +1,405 @@
+<Page x:Class="MattEland.CodeReview.Desktop.Pages.AnalysisPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:local="using:MattEland.CodeReview.Desktop.Pages"
+      xmlns:vm="using:MattEland.CodeReview.Desktop.ViewModels"
+      xmlns:models="using:MattEland.CodeReview.Core.Models"
+      xmlns:controls="using:MattEland.CodeReview.Desktop.Controls"
+      xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
+      Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header Section -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="4">
+                <TextBlock Text="Code Analysis"
+                           Style="{ThemeResource TitleLargeTextBlockStyle}"/>
+                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}">
+                    <Run Text="Analyzing changes against"/>
+                    <Run Text="{x:Bind ViewModel.BaseBranch, Mode=OneWay}" FontWeight="SemiBold"/>
+                    <Run Text="branch"/>
+                </TextBlock>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" 
+                        Orientation="Horizontal" 
+                        Spacing="12"
+                        VerticalAlignment="Center">
+                
+                <!-- Base Branch Selector -->
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="Base Branch:"
+                               VerticalAlignment="Center"
+                               Style="{ThemeResource CaptionTextBlockStyle}"/>
+                    <TextBox Text="{x:Bind ViewModel.BaseBranch, Mode=TwoWay}"
+                             Width="120"
+                             PlaceholderText="main"/>
+                </StackPanel>
+
+                <!-- Run Analysis Button -->
+                <Button Command="{x:Bind ViewModel.RunAnalysisCommand}"
+                        Style="{ThemeResource AccentButtonStyle}"
+                        IsEnabled="{x:Bind ViewModel.CanRunAnalysis, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE768;" FontSize="16"/>
+                        <TextBlock Text="Run Analysis"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- No Repository Warning -->
+        <muxc:InfoBar Grid.Row="1"
+                      IsOpen="{x:Bind local:AnalysisPage.IsNotTrue(ViewModel.HasRepository), Mode=OneWay}"
+                      Severity="Warning"
+                      Title="No Repository Open"
+                      Message="Please open a git repository from the Home page to run analysis."
+                      IsClosable="False"/>
+
+        <!-- Analysis Progress -->
+        <Border Grid.Row="1"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="16"
+                Visibility="{x:Bind ViewModel.IsAnalyzing, Mode=OneWay}">
+            <StackPanel Spacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <muxc:ProgressRing IsActive="True" Width="24" Height="24"/>
+                    <TextBlock Text="{x:Bind ViewModel.ProgressMessage, Mode=OneWay}"
+                               VerticalAlignment="Center"
+                               Style="{ThemeResource BodyTextBlockStyle}"/>
+                </StackPanel>
+                <muxc:ProgressBar IsIndeterminate="True"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Results Section -->
+        <Grid Grid.Row="2" Visibility="{x:Bind ViewModel.HasResults, Mode=OneWay}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Summary Bar -->
+            <Border Grid.Row="0"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16"
+                    Margin="0,0,0,16">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal" Spacing="24">
+                        <!-- Critical -->
+                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                    Visibility="{x:Bind local:AnalysisPage.VisibleIfPositive(ViewModel.CriticalCount), Mode=OneWay}">
+                            <Border Background="#FDE7E9" CornerRadius="4" Padding="8,4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xEA39;" FontSize="14" Foreground="#C42B1C"/>
+                                    <TextBlock Text="{x:Bind ViewModel.CriticalCount, Mode=OneWay}" 
+                                               FontWeight="SemiBold" Foreground="#C42B1C"/>
+                                    <TextBlock Text="Critical" Foreground="#C42B1C"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Errors -->
+                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                    Visibility="{x:Bind local:AnalysisPage.VisibleIfPositive(ViewModel.ErrorCount), Mode=OneWay}">
+                            <Border Background="#FFF4CE" CornerRadius="4" Padding="8,4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="#9D5D00"/>
+                                    <TextBlock Text="{x:Bind ViewModel.ErrorCount, Mode=OneWay}" 
+                                               FontWeight="SemiBold" Foreground="#9D5D00"/>
+                                    <TextBlock Text="Errors" Foreground="#9D5D00"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Warnings -->
+                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                    Visibility="{x:Bind local:AnalysisPage.VisibleIfPositive(ViewModel.WarningCount), Mode=OneWay}">
+                            <Border Background="#DFF6DD" CornerRadius="4" Padding="8,4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="#0F7B0F"/>
+                                    <TextBlock Text="{x:Bind ViewModel.WarningCount, Mode=OneWay}" 
+                                               FontWeight="SemiBold" Foreground="#0F7B0F"/>
+                                    <TextBlock Text="Warnings" Foreground="#0F7B0F"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Info -->
+                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                    Visibility="{x:Bind local:AnalysisPage.VisibleIfPositive(ViewModel.InfoCount), Mode=OneWay}">
+                            <Border Background="#F0F0F0" CornerRadius="4" Padding="8,4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE946;" FontSize="14" Foreground="#616161"/>
+                                    <TextBlock Text="{x:Bind ViewModel.InfoCount, Mode=OneWay}" 
+                                               FontWeight="SemiBold" Foreground="#616161"/>
+                                    <TextBlock Text="Info" Foreground="#616161"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Total -->
+                        <TextBlock VerticalAlignment="Center">
+                            <Run Text="{x:Bind ViewModel.TotalIssues, Mode=OneWay}" FontWeight="SemiBold"/>
+                            <Run Text="total issues found"/>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="1"
+                               Text="{x:Bind ViewModel.ProgressMessage, Mode=OneWay}"
+                               Style="{ThemeResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- Filter Chips -->
+            <StackPanel Grid.Row="1" 
+                        Orientation="Horizontal" 
+                        Spacing="8"
+                        Margin="0,0,0,12">
+                <TextBlock Text="Filter:"
+                           VerticalAlignment="Center"
+                           Style="{ThemeResource CaptionTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                
+                <Button Content="All" 
+                        Command="{x:Bind ViewModel.ClearSeverityFilterCommand}"
+                        Style="{ThemeResource DefaultButtonStyle}"/>
+                
+                <Button Command="{x:Bind ViewModel.SetSeverityFilterCommand}"
+                        CommandParameter="{x:Bind models:Severity.Critical}">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Ellipse Width="8" Height="8" Fill="#C42B1C"/>
+                        <TextBlock Text="Critical"/>
+                    </StackPanel>
+                </Button>
+                
+                <Button Command="{x:Bind ViewModel.SetSeverityFilterCommand}"
+                        CommandParameter="{x:Bind models:Severity.Error}">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Ellipse Width="8" Height="8" Fill="#9D5D00"/>
+                        <TextBlock Text="Errors"/>
+                    </StackPanel>
+                </Button>
+                
+                <Button Command="{x:Bind ViewModel.SetSeverityFilterCommand}"
+                        CommandParameter="{x:Bind models:Severity.Warning}">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Ellipse Width="8" Height="8" Fill="#0F7B0F"/>
+                        <TextBlock Text="Warnings"/>
+                    </StackPanel>
+                </Button>
+                
+                <Button Command="{x:Bind ViewModel.SetSeverityFilterCommand}"
+                        CommandParameter="{x:Bind models:Severity.Info}">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                        <Ellipse Width="8" Height="8" Fill="#616161"/>
+                        <TextBlock Text="Info"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <!-- Issues List -->
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                <muxc:ItemsRepeater ItemsSource="{x:Bind ViewModel.GroupedIssues, Mode=OneWay}">
+                    <muxc:ItemsRepeater.Layout>
+                        <muxc:StackLayout Spacing="16"/>
+                    </muxc:ItemsRepeater.Layout>
+                    <muxc:ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FileIssueGroup">
+                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="0">
+                                
+                                <muxc:Expander HorizontalAlignment="Stretch"
+                                               HorizontalContentAlignment="Stretch"
+                                               IsExpanded="True">
+                                    <muxc:Expander.Header>
+                                        <Grid Padding="4,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <FontIcon Grid.Column="0" 
+                                                      Glyph="&#xE8A5;"
+                                                      FontSize="16"
+                                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                      Margin="0,0,12,0"/>
+
+                                            <StackPanel Grid.Column="1" Spacing="2">
+                                                <TextBlock Text="{x:Bind FileName}"
+                                                           Style="{ThemeResource BodyStrongTextBlockStyle}"/>
+                                                <TextBlock Text="{x:Bind FilePath}"
+                                                           Style="{ThemeResource CaptionTextBlockStyle}"
+                                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="2" 
+                                                        Orientation="Horizontal" 
+                                                        Spacing="8">
+                                                <Border Background="#FDE7E9" CornerRadius="4" Padding="6,2"
+                                                        Visibility="{x:Bind local:AnalysisPage.VisibleIfPositive(CriticalCount)}">
+                                                    <TextBlock Text="{x:Bind CriticalCount}" Foreground="#C42B1C" FontSize="12"/>
+                                                </Border>
+                                                <Border Background="#FFF4CE" CornerRadius="4" Padding="6,2"
+                                                        Visibility="{x:Bind local:AnalysisPage.VisibleIfPositive(ErrorCount)}">
+                                                    <TextBlock Text="{x:Bind ErrorCount}" Foreground="#9D5D00" FontSize="12"/>
+                                                </Border>
+                                                <Border Background="#DFF6DD" CornerRadius="4" Padding="6,2"
+                                                        Visibility="{x:Bind local:AnalysisPage.VisibleIfPositive(WarningCount)}">
+                                                    <TextBlock Text="{x:Bind WarningCount}" Foreground="#0F7B0F" FontSize="12"/>
+                                                </Border>
+                                                <Border Background="#F0F0F0" CornerRadius="4" Padding="6,2"
+                                                        Visibility="{x:Bind local:AnalysisPage.VisibleIfPositive(InfoCount)}">
+                                                    <TextBlock Text="{x:Bind InfoCount}" Foreground="#616161" FontSize="12"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </muxc:Expander.Header>
+
+                                    <muxc:Expander.Content>
+                                        <muxc:ItemsRepeater ItemsSource="{x:Bind Issues}" Margin="8,0,8,8">
+                                            <muxc:ItemsRepeater.Layout>
+                                                <muxc:StackLayout Spacing="8"/>
+                                            </muxc:ItemsRepeater.Layout>
+                                            <muxc:ItemsRepeater.ItemTemplate>
+                                                <DataTemplate x:DataType="models:Issue">
+                                                    <controls:IssueCard Issue="{x:Bind}"/>
+                                                </DataTemplate>
+                                            </muxc:ItemsRepeater.ItemTemplate>
+                                        </muxc:ItemsRepeater>
+                                    </muxc:Expander.Content>
+                                </muxc:Expander>
+                            </Border>
+                        </DataTemplate>
+                    </muxc:ItemsRepeater.ItemTemplate>
+                </muxc:ItemsRepeater>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Empty State with Log -->
+        <Grid Grid.Row="2" Visibility="{x:Bind local:AnalysisPage.Not(ViewModel.HasResults), Mode=OneWay}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Empty state message -->
+            <Border Grid.Row="0"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="32"
+                    HorizontalAlignment="Center"
+                    Visibility="{x:Bind local:AnalysisPage.IsEmpty(ViewModel.AnalysisLog.Count), Mode=OneWay}">
+                <StackPanel Spacing="12" HorizontalAlignment="Center">
+                    <FontIcon Glyph="&#xE9D9;" 
+                              FontSize="48"
+                              Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBlock Text="No analysis results yet"
+                               Style="{ThemeResource SubtitleTextBlockStyle}"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Run an analysis to see code review results"
+                               Style="{ThemeResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Analysis Log Panel -->
+            <Border Grid.Row="1"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Margin="0,16,0,0"
+                    Visibility="{x:Bind local:AnalysisPage.HasItems(ViewModel.AnalysisLog.Count), Mode=OneWay}">
+                <muxc:Expander HorizontalAlignment="Stretch"
+                               HorizontalContentAlignment="Stretch"
+                               IsExpanded="True">
+                    <muxc:Expander.Header>
+                        <StackPanel Orientation="Horizontal" Spacing="8" Padding="4,8">
+                            <FontIcon Glyph="&#xE756;" FontSize="16"/>
+                            <TextBlock Text="Analysis Log" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
+                            <TextBlock Text="{x:Bind ViewModel.AnalysisLog.Count, Mode=OneWay}" 
+                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        </StackPanel>
+                    </muxc:Expander.Header>
+                    <muxc:Expander.Content>
+                        <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto" Padding="8">
+                            <muxc:ItemsRepeater ItemsSource="{x:Bind ViewModel.AnalysisLog, Mode=OneWay}">
+                                <muxc:ItemsRepeater.Layout>
+                                    <muxc:StackLayout Spacing="4"/>
+                                </muxc:ItemsRepeater.Layout>
+                                <muxc:ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:AnalysisLogEntry">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{x:Bind local:AnalysisPage.FormatTime(Timestamp)}"
+                                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                       FontFamily="Consolas"
+                                                       Width="70"/>
+                                            
+                                            <Border Grid.Column="1" 
+                                                    Width="8" Height="8" 
+                                                    CornerRadius="4"
+                                                    VerticalAlignment="Center">
+                                                <Border.Background>
+                                                    <SolidColorBrush Color="{x:Bind local:AnalysisPage.GetLogColor(Level)}"/>
+                                                </Border.Background>
+                                            </Border>
+                                            
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{x:Bind Message}"
+                                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                                       TextWrapping="WrapWholeWords"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </muxc:ItemsRepeater.ItemTemplate>
+                            </muxc:ItemsRepeater>
+                        </ScrollViewer>
+                    </muxc:Expander.Content>
+                </muxc:Expander>
+            </Border>
+        </Grid>
+    </Grid>
+</Page>

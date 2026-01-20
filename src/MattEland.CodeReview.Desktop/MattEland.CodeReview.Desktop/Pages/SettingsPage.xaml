@@ -1,0 +1,356 @@
+<Page x:Class="MattEland.CodeReview.Desktop.Pages.SettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:local="using:MattEland.CodeReview.Desktop.Pages"
+      xmlns:vm="using:MattEland.CodeReview.Desktop.ViewModels"
+      xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
+      Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid>
+        <!-- Toast notification at the top -->
+        <muxc:InfoBar x:Name="ToastInfoBar"
+                      IsOpen="{x:Bind ViewModel.ShowToast, Mode=TwoWay}"
+                      Title="{x:Bind ViewModel.ToastTitle, Mode=OneWay}"
+                      Message="{x:Bind ViewModel.ToastMessage, Mode=OneWay}"
+                      Severity="{x:Bind local:SettingsPage.GetSeverity(ViewModel.ToastIsSuccess), Mode=OneWay}"
+                      VerticalAlignment="Top"
+                      HorizontalAlignment="Stretch"
+                      Margin="0,0,0,0"
+                      CloseButtonCommand="{x:Bind ViewModel.CloseToastCommand}"/>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,50,0,0">
+            <StackPanel Spacing="24" Padding="0,0,0,24" MaxWidth="800">
+            
+                <!-- Header -->
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Settings"
+                               Style="{ThemeResource TitleLargeTextBlockStyle}"/>
+                    <TextBlock Text="Configure AI providers, git options, and custom prompts"
+                               Style="{ThemeResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+
+            <!-- AI Provider Section -->
+            <StackPanel Spacing="12">
+                <TextBlock Text="AI Provider"
+                           Style="{ThemeResource SubtitleTextBlockStyle}"/>
+
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20">
+                    <StackPanel Spacing="16">
+                        
+                        <!-- Provider Selection -->
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Provider"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}"/>
+                            <ComboBox ItemsSource="{x:Bind ViewModel.AvailableProviders}"
+                                      SelectedItem="{x:Bind ViewModel.SelectedProvider, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+
+                        <muxc:MenuFlyoutSeparator/>
+
+                        <!-- Azure OpenAI Settings -->
+                        <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.IsAzureOpenAI, Mode=OneWay}">
+                            <TextBlock Text="Azure OpenAI Configuration"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}"
+                                       Foreground="{ThemeResource SystemAccentColor}"/>
+                            
+                            <Grid ColumnSpacing="16" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Spacing="4">
+                                    <TextBlock Text="Endpoint URL"
+                                               Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                    <TextBox Text="{x:Bind ViewModel.AzureEndpoint, Mode=TwoWay}"
+                                             PlaceholderText="https://your-resource.openai.azure.com/"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="4">
+                                    <TextBlock Text="Deployment Name"
+                                               Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                    <TextBox Text="{x:Bind ViewModel.AzureDeploymentName, Mode=TwoWay}"
+                                             PlaceholderText="gpt-4o"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
+                                    <TextBlock Text="API Key"
+                                               Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                    <PasswordBox Password="{x:Bind ViewModel.AzureApiKey, Mode=TwoWay}"
+                                                 PlaceholderText="Enter API key"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- OpenAI Settings -->
+                        <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.IsOpenAI, Mode=OneWay}">
+                            <TextBlock Text="OpenAI Configuration"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}"
+                                       Foreground="{ThemeResource SystemAccentColor}"/>
+                            
+                            <Grid ColumnSpacing="16" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
+                                    <TextBlock Text="API Key"
+                                               Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                    <PasswordBox Password="{x:Bind ViewModel.OpenAIApiKey, Mode=TwoWay}"
+                                                 PlaceholderText="sk-..."/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4">
+                                    <TextBlock Text="Model"
+                                               Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                    <TextBox Text="{x:Bind ViewModel.OpenAIModel, Mode=TwoWay}"
+                                             PlaceholderText="gpt-4o"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Spacing="4">
+                                    <TextBlock Text="Organization ID (Optional)"
+                                               Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                    <TextBox Text="{x:Bind ViewModel.OpenAIOrganizationId, Mode=TwoWay}"
+                                             PlaceholderText="org-..."/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Ollama Settings -->
+                        <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.IsOllama, Mode=OneWay}">
+                            <TextBlock Text="Ollama Configuration"
+                                       Style="{ThemeResource BodyStrongTextBlockStyle}"
+                                       Foreground="{ThemeResource SystemAccentColor}"/>
+                            
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0" Spacing="4">
+                                    <TextBlock Text="Endpoint URL"
+                                               Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                    <TextBox Text="{x:Bind ViewModel.OllamaEndpoint, Mode=TwoWay}"
+                                             PlaceholderText="http://localhost:11434"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                    <TextBlock Text="Model"
+                                               Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                    <TextBox Text="{x:Bind ViewModel.OllamaModel, Mode=TwoWay}"
+                                             PlaceholderText="llama3"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Test Connection -->
+                        <Button Content="Test Connection"
+                                Command="{x:Bind ViewModel.TestConnectionCommand}"
+                                HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Git Settings Section -->
+            <StackPanel Spacing="12">
+                <TextBlock Text="Git Settings"
+                           Style="{ThemeResource SubtitleTextBlockStyle}"/>
+
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20">
+                    <Grid ColumnSpacing="16" RowSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock Text="Default Base Branch"
+                                       Style="{ThemeResource CaptionTextBlockStyle}"/>
+                            <TextBox Text="{x:Bind ViewModel.DefaultBaseBranch, Mode=TwoWay}"
+                                     PlaceholderText="main"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock Text="Max Files Per Review"
+                                       Style="{ThemeResource CaptionTextBlockStyle}"/>
+                            <muxc:NumberBox Value="{x:Bind ViewModel.MaxFilesPerReview, Mode=TwoWay}"
+                                            Minimum="1"
+                                            Maximum="200"
+                                            SpinButtonPlacementMode="Inline"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Spacing="4">
+                            <TextBlock Text="Max Diff Size Per File"
+                                       Style="{ThemeResource CaptionTextBlockStyle}"/>
+                            <muxc:NumberBox Value="{x:Bind ViewModel.MaxDiffSizePerFile, Mode=TwoWay}"
+                                            Minimum="1000"
+                                            Maximum="100000"
+                                            SpinButtonPlacementMode="Inline"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
+
+            <!-- Custom Prompt Paths Section -->
+            <StackPanel Spacing="12">
+                <TextBlock Text="Custom Prompt Paths"
+                           Style="{ThemeResource SubtitleTextBlockStyle}"/>
+
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20">
+                    <StackPanel Spacing="12">
+                        
+                        <TextBlock Text="Add directories containing custom .prompt files"
+                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                        <!-- Add new path -->
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBox Grid.Column="0"
+                                     Text="{x:Bind ViewModel.NewPromptPath, Mode=TwoWay}"
+                                     PlaceholderText="Enter folder path..."/>
+                            <Button Grid.Column="1"
+                                    Content="Add"
+                                    Command="{x:Bind ViewModel.AddPromptPathCommand}"
+                                    Style="{ThemeResource AccentButtonStyle}"/>
+                        </Grid>
+
+                        <!-- Path list -->
+                        <muxc:ItemsRepeater ItemsSource="{x:Bind ViewModel.CustomPromptPaths, Mode=OneWay}">
+                            <muxc:ItemsRepeater.Layout>
+                                <muxc:StackLayout Spacing="8"/>
+                            </muxc:ItemsRepeater.Layout>
+                            <muxc:ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Border Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                                            CornerRadius="4"
+                                            Padding="12,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <FontIcon Grid.Column="0"
+                                                      Glyph="&#xED25;"
+                                                      FontSize="16"
+                                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                      Margin="0,0,8,0"/>
+
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{x:Bind}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"/>
+
+                                            <Button Grid.Column="2"
+                                                    Content="Remove"
+                                                    Command="{Binding DataContext.RemovePromptPathCommand, ElementName=PageRoot}"
+                                                    CommandParameter="{x:Bind}"
+                                                    Padding="8,4"
+                                                    Background="Transparent"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </muxc:ItemsRepeater.ItemTemplate>
+                        </muxc:ItemsRepeater>
+
+                        <!-- Empty state -->
+                        <TextBlock Text="No custom prompt paths configured"
+                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                   Visibility="{x:Bind local:SettingsPage.IsEmpty(ViewModel.CustomPromptPaths.Count), Mode=OneWay}"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Action Buttons -->
+            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="20">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Status Message -->
+                    <TextBlock Grid.Column="0"
+                               Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+                               Style="{ThemeResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               VerticalAlignment="Center"/>
+
+                    <StackPanel Grid.Column="1" 
+                                Orientation="Horizontal" 
+                                Spacing="12">
+                        <Button Content="Reset"
+                                Command="{x:Bind ViewModel.ResetSettingsCommand}"/>
+                        <Button Content="Save Settings"
+                                Command="{x:Bind ViewModel.SaveSettingsCommand}"
+                                Style="{ThemeResource AccentButtonStyle}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- About Section -->
+            <StackPanel Spacing="12">
+                <TextBlock Text="About"
+                           Style="{ThemeResource SubtitleTextBlockStyle}"/>
+
+                <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="20">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Code Review Tool"
+                                   Style="{ThemeResource BodyStrongTextBlockStyle}"/>
+                        <TextBlock Text="LLM-powered code review that detects logic errors, performance issues, and security vulnerabilities."
+                                   Style="{ThemeResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="WrapWholeWords"/>
+                        <TextBlock Style="{ThemeResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}">
+                            <Run Text="Version 1.0 - Powered by Uno Platform and Microsoft.Extensions.AI"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

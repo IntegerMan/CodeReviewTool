@@ -12,12 +12,12 @@ namespace MattEland.CodeReview.Core.Analysis;
 /// </summary>
 public sealed class ChatClientFactory
 {
-    private readonly CodeReviewOptions _options;
+    private readonly IOptionsMonitor<CodeReviewOptions> _optionsMonitor;
     private readonly ILogger<ChatClientFactory> _logger;
 
-    public ChatClientFactory(IOptions<CodeReviewOptions> options, ILogger<ChatClientFactory> logger)
+    public ChatClientFactory(IOptionsMonitor<CodeReviewOptions> optionsMonitor, ILogger<ChatClientFactory> logger)
     {
-        _options = options.Value;
+        _optionsMonitor = optionsMonitor;
         _logger = logger;
     }
 
@@ -26,22 +26,24 @@ public sealed class ChatClientFactory
     /// </summary>
     public IChatClient CreateClient()
     {
-        var provider = _options.Provider?.ToLowerInvariant() ?? "ollama";
+        // Get the current options (latest values)
+        var options = _optionsMonitor.CurrentValue;
+        var provider = options.Provider?.ToLowerInvariant() ?? "ollama";
         
         _logger.LogInformation("Creating chat client for provider: {Provider}", provider);
 
         return provider switch
         {
-            "azureopenai" => CreateAzureOpenAIClient(),
-            "openai" => CreateOpenAIClient(),
-            "ollama" => CreateOllamaClient(),
+            "azureopenai" => CreateAzureOpenAIClient(options),
+            "openai" => CreateOpenAIClient(options),
+            "ollama" => CreateOllamaClient(options),
             _ => throw new InvalidOperationException($"Unknown AI provider: {provider}")
         };
     }
 
-    private IChatClient CreateAzureOpenAIClient()
+    private IChatClient CreateAzureOpenAIClient(CodeReviewOptions options)
     {
-        var config = _options.AzureOpenAI;
+        var config = options.AzureOpenAI;
         
         if (string.IsNullOrEmpty(config.Endpoint))
             throw new InvalidOperationException("Azure OpenAI endpoint is required");
@@ -58,9 +60,9 @@ public sealed class ChatClientFactory
         return client.AsIChatClient(config.DeploymentName);
     }
 
-    private IChatClient CreateOpenAIClient()
+    private IChatClient CreateOpenAIClient(CodeReviewOptions options)
     {
-        var config = _options.OpenAI;
+        var config = options.OpenAI;
         
         if (string.IsNullOrEmpty(config.ApiKey))
             throw new InvalidOperationException("OpenAI API key is required");
@@ -71,9 +73,9 @@ public sealed class ChatClientFactory
         return client.AsIChatClient();
     }
 
-    private IChatClient CreateOllamaClient()
+    private IChatClient CreateOllamaClient(CodeReviewOptions options)
     {
-        var config = _options.Ollama;
+        var config = options.Ollama;
         
         _logger.LogDebug("Connecting to Ollama at {Endpoint} with model {Model}",
             config.Endpoint, config.Model);
