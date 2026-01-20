@@ -40,4 +40,12 @@ public interface IAnalysisProgressReporter
     /// <param name="error">The parsing error message.</param>
     /// <param name="response">The response that failed to parse (truncated if too long).</param>
     void ReportJsonParsingError(string filePath, string ruleId, string error, string response);
+
+    /// <summary>
+    /// Reports detected issues for a file and rule.
+    /// </summary>
+    /// <param name="filePath">Path of the file being analyzed.</param>
+    /// <param name="ruleId">ID of the rule being applied.</param>
+    /// <param name="issues">The detected issues.</param>
+    void ReportIssues(string filePath, string ruleId, IEnumerable<Models.Issue> issues);
 }

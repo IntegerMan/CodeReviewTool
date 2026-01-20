@@ -305,6 +305,18 @@ public partial class AnalysisViewModel : ObservableObject
             CurrentFileName = string.Empty;
             CurrentRuleId = string.Empty;
             
+            // Initialize empty result if needed so we can start adding issues
+            CurrentResult = new ReviewResult
+            {
+                Id = Guid.NewGuid().ToString("N")[..8],
+                StartedAt = DateTimeOffset.UtcNow,
+                CompletedAt = DateTimeOffset.UtcNow,
+                Diff = diff,
+                Issues = new List<Issue>(),
+                AppliedRules = new List<Rule>(),
+                IsSuccess = true
+            };
+            
             BuildFileTree(diff.Files);
 
             // Create progress reporter
@@ -323,6 +335,9 @@ public partial class AnalysisViewModel : ObservableObject
                 AddLog($"Found {TotalIssues} issue(s): {CriticalCount} critical, {ErrorCount} errors, {WarningCount} warnings, {InfoCount} info", 
                     TotalIssues > 0 ? AnalysisLogLevel.Warning : AnalysisLogLevel.Success);
                 ProgressMessage = $"Analysis complete. Found {TotalIssues} issue(s) in {result.Duration?.TotalSeconds:F1}s";
+                
+                // Automatically switch to Results tab if we found issues
+                 SelectedTabIndex = 1;
             }
             else
             {
@@ -417,6 +432,16 @@ public partial class AnalysisViewModel : ObservableObject
         OnPropertyChanged(nameof(FilteredIssues));
     }
 
+    /// <summary>
+    /// Index of the selected tab (0 = Analysis, 1 = Results).
+    /// </summary>
+    public int SelectedTabIndex
+    {
+        get => _selectedTabIndex;
+        set => SetProperty(ref _selectedTabIndex, value);
+    }
+    private int _selectedTabIndex;
+
     private void UpdateGroupedIssues()
     {
         GroupedIssues.Clear();
@@ -443,6 +468,84 @@ public partial class AnalysisViewModel : ObservableObject
             if (node != null)
             {
                 node.IssueCount = issues.Count;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds newly found issues to the results and updates the UI.
+    /// </summary>
+    public void AddIssues(IEnumerable<Issue> issues)
+    {
+        var issueList = issues.ToList();
+        if (issueList.Count == 0) return;
+
+        var result = CurrentResult ?? new ReviewResult
+        {
+            Id = Guid.NewGuid().ToString("N")[..8],
+            StartedAt = DateTimeOffset.UtcNow,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Diff = new GitDiff { BaseRef = "unknown", HeadRef = "unknown", Files = new List<FileChange>() },
+            Issues = new List<Issue>(),
+            AppliedRules = new List<Rule>(),
+            IsSuccess = true
+        };
+
+        // Add to main result
+        var allIssues = result.Issues.ToList();
+        allIssues.AddRange(issueList);
+        
+        // Update the result object
+        CurrentResult = new ReviewResult
+        {
+            Id = result.Id,
+            StartedAt = result.StartedAt,
+            CompletedAt = result.CompletedAt,
+            Diff = result.Diff,
+            Issues = allIssues,
+            AppliedRules = result.AppliedRules,
+            IsSuccess = result.IsSuccess,
+            ErrorMessage = result.ErrorMessage
+        };
+
+        // Update grouped issues for UI
+        foreach (var group in issueList.GroupBy(i => i.FilePath))
+        {
+            var existingGroup = GroupedIssues.FirstOrDefault(g => g.FilePath == group.Key);
+            if (existingGroup != null)
+            {
+                existingGroup.Issues.AddRange(group);
+                // Trigger update for counts
+                var index = GroupedIssues.IndexOf(existingGroup);
+                if (index != -1)
+                {
+                    // Re-create the group to trigger UI updates for counts
+                    // This is a bit inefficient but ensures the UI refreshes
+                    // A better observable model for FileIssueGroup would be ideal
+                    var newGroup = new FileIssueGroup
+                    {
+                        FilePath = existingGroup.FilePath,
+                        FileName = existingGroup.FileName,
+                        Issues = existingGroup.Issues.OrderByDescending(i => i.Severity).ThenBy(i => i.StartLine).ToList()
+                    };
+                    GroupedIssues[index] = newGroup;
+                }
+            }
+            else
+            {
+                GroupedIssues.Add(new FileIssueGroup
+                {
+                    FilePath = group.Key,
+                    FileName = Path.GetFileName(group.Key),
+                    Issues = group.ToList()
+                });
+            }
+
+            // Update file tree node
+            var node = FindFileNode(group.Key);
+            if (node != null)
+            {
+                node.IssueCount += group.Count();
             }
         }
     }

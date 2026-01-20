@@ -98,22 +98,25 @@ public sealed class CodeReviewService : ICodeReviewService
                 _logger.LogDebug("Analyzing {FileCount} {Language} files with {RuleCount} rules",
                     files.Count, language, rules.Count);
 
+                // Add rules to the list of applied rules
+                appliedRules.AddRange(rules);
+
                 var fileIndex = 0;
-                foreach (var rule in rules)
+                foreach (var file in files)
                 {
-                    appliedRules.Add(rule);
-                    var ruleIndex = rules.IndexOf(rule);
-                    
-                    foreach (var file in files)
+                    fileIndex++;
+                    var ruleIndex = 0;
+
+                    foreach (var rule in rules)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
                         currentWorkItem++;
-                        fileIndex++;
+                        ruleIndex++;
                         
                         // Report progress
                         progressReporter?.ReportProgress(
                             fileIndex, files.Count, 
-                            ruleIndex + 1, rules.Count,
+                            ruleIndex, rules.Count,
                             file.Path, rule.Id);
                         
                         var (issues, error) = await AnalyzeFileWithRuleAsync(
@@ -215,7 +218,10 @@ public sealed class CodeReviewService : ICodeReviewService
             var responsePreview = TruncateForDisplay(responseText, 500);
             progressReporter?.ReportLlmResponse(file.Path, rule.Id, responsePreview);
             
-            return (ParseIssuesFromResponse(responseText, file.Path, rule, progressReporter), null);
+            var issues = ParseIssuesFromResponse(responseText, file.Path, rule, progressReporter);
+            progressReporter?.ReportIssues(file.Path, rule.Id, issues);
+            
+            return (issues, null);
         }
         catch (Exception ex)
         {

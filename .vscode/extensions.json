@@ -5,6 +5,7 @@
     "ms-dotnettools.vscode-dotnet-runtime",
     "unoplatform.uno-platform",
     "redhat.vscode-yaml",
-    "yzhang.markdown-all-in-one"
+    "yzhang.markdown-all-in-one",
+    "unoplatform.vscode"
   ]
 }

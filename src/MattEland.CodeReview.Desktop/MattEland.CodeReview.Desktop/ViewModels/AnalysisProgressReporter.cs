@@ -1,5 +1,6 @@
 using MattEland.CodeReview.Core.Analysis;
 using MattEland.CodeReview.Desktop.ViewModels;
+using MattEland.CodeReview.Core.Models;
 
 namespace MattEland.CodeReview.Desktop.ViewModels;
 
@@ -128,5 +129,10 @@ public sealed class AnalysisProgressReporter : IAnalysisProgressReporter
             ruleId,
             request,
             response);
+    }
+
+    public void ReportIssues(string filePath, string ruleId, IEnumerable<Issue> issues)
+    {
+        _viewModel.AddIssues(issues);
     }
 }
