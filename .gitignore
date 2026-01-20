@@ -373,3 +373,4 @@ secrets.json
 appsettings.*.json
 !appsettings.json
 !appsettings.Development.json.template
+build_output.txt

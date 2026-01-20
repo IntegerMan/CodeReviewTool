@@ -1,4 +1,6 @@
 using MattEland.CodeReview.Desktop.ViewModels;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Navigation;
 using MattEland.CodeReview.Core.Models;
 using Windows.UI;
 
@@ -7,11 +9,13 @@ namespace MattEland.CodeReview.Desktop.Pages;
 public sealed partial class AnalysisPage : Page
 {
     public AnalysisViewModel ViewModel { get; }
+    public WizardViewModel Wizard { get; }
 
     public AnalysisPage()
     {
         ViewModel = App.Services.GetRequiredService<AnalysisViewModel>();
-        this.DataContext = ViewModel;
+        Wizard = App.Services.GetRequiredService<WizardViewModel>();
+        this.DataContext = this; // Use the page itself as DataContext for binding to both
         this.InitializeComponent();
     }
 
@@ -19,6 +23,20 @@ public sealed partial class AnalysisPage : Page
     {
         base.OnNavigatedTo(e);
         ViewModel.RefreshRepositoryState();
+        Wizard.RefreshRepositoryState();
+    }
+
+    /// <summary>
+    /// Returns true if the current step matches the parameter.
+    /// </summary>
+    public static bool IsStep(WizardStep current, int step) => (int)current == step;
+
+    /// <summary>
+    /// Navigates to the results tab after analysis.
+    /// </summary>
+    public void NavigateToResults()
+    {
+        ViewModel.SelectedTabIndex = 1;
     }
 
     /// <summary>
@@ -128,9 +146,70 @@ public sealed partial class AnalysisPage : Page
         (added > 0 || deleted > 0) ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
-    /// Returns Visible if is a file node.
+    /// Returns true if the is a file node.
     /// </summary>
     public static Visibility VisibleIfFile(bool isFile) => 
         isFile ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// Gets the opacity for a wizard step.
+    /// </summary>
+    public static double GetStepOpacity(WizardStep current, int step) => 
+        (int)current == step ? 1.0 : 0.4;
+
+    /// <summary>
+    /// Gets the background for a wizard step bubble.
+    /// </summary>
+    public static Brush GetStepBackground(WizardStep current, int step)
+    {
+        if ((int)current == step) return (Brush)Application.Current.Resources["SystemAccentColor"];
+        if ((int)current > step) return (Brush)Application.Current.Resources["SystemAccentColorLight1"];
+        return (Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"];
+    }
+
+    /// <summary>
+    /// Returns Visible if current step matches.
+    /// </summary>
+    public static Visibility VisibleIfStep(WizardStep current, int step) => 
+        (int)current == step ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// Returns true if the next button should be visible.
+    /// </summary>
+    public static Visibility GetNextButtonVisibility(WizardStep current) => 
+        current != WizardStep.Analysis ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// Returns Visible if value is true.
+    /// </summary>
+    public static Visibility VisibleIfTrue(bool value) => 
+        value ? Visibility.Visible : Visibility.Collapsed;
+
+    private async void OnNextClicked(object sender, RoutedEventArgs e)
+    {
+        if (Wizard.CurrentStep == WizardStep.Rules)
+        {
+            // The Next button on step 3 transition to Step 4 (Analysis)
+            // But we need to actually TRIGER the analysis on AnalysisViewModel
+            var diff = Wizard.GetFilteredDiff();
+            var ruleIds = Wizard.GetSelectedRuleIds();
+            
+            // Advance wizard to step 4
+            Wizard.CurrentStep = WizardStep.Analysis;
+
+            // Trigger analysis
+            await ViewModel.RunAnalysisAsync(diff, ruleIds, default);
+        }
+        else if (Wizard.CurrentStep == WizardStep.Analysis)
+        {
+            // "Done" button - reset wizard
+            Wizard.ResetCommand.Execute(null);
+        }
+        else
+        {
+            // Other steps - just move next
+            await Wizard.NextCommand.ExecuteAsync(null);
+        }
+    }
 }
 

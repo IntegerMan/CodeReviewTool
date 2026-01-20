@@ -221,6 +221,14 @@ public partial class AnalysisViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRunAnalysis))]
     private async Task RunAnalysisAsync(CancellationToken cancellationToken)
     {
+         await RunAnalysisAsync(null, null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Runs the code review analysis with an optional filtered diff and rule set.
+    /// </summary>
+    public async Task RunAnalysisAsync(GitDiff? selectedDiff, IEnumerable<string>? ruleIds, CancellationToken cancellationToken)
+    {
         if (!HasRepository || RepositoryPath == null) return;
 
         try
@@ -236,11 +244,20 @@ public partial class AnalysisViewModel : ObservableObject
             AddLog($"Current branch: {CurrentBranch}", AnalysisLogLevel.Info);
             AddLog($"Comparing against: {BaseBranch}", AnalysisLogLevel.Info);
 
-            // Get the diff first to show what files are being analyzed
-            ProgressMessage = "Getting git diff...";
-            AddLog("Fetching git diff...", AnalysisLogLevel.Info);
+            GitDiff diff;
+            if (selectedDiff != null)
+            {
+                diff = selectedDiff;
+                AddLog("Using selected files for analysis", AnalysisLogLevel.Info);
+            }
+            else
+            {
+                // Get the diff first to show what files are being analyzed
+                ProgressMessage = "Getting git diff...";
+                AddLog("Fetching git diff...", AnalysisLogLevel.Info);
+                diff = await _gitService.GetDiffFromBaseAsync(RepositoryPath, BaseBranch, cancellationToken);
+            }
             
-            var diff = await _gitService.GetDiffFromBaseAsync(RepositoryPath, BaseBranch, cancellationToken);
             FilesInDiff = diff.Files.Count;
 
             if (diff.Files.Count == 0)
@@ -268,22 +285,25 @@ public partial class AnalysisViewModel : ObservableObject
                 AddLog($"  - {file.Path} ({file.ChangeType}, +{file.LinesAdded}/-{file.LinesDeleted})", AnalysisLogLevel.Info);
             }
 
-            // Check rules
-            var enabledRules = _ruleProvider.GetEnabledRules().ToList();
-            RulesApplied = enabledRules.Count;
+            // Check rules - if IDs were provided, we filter here just for the log report
+            var allRules = ruleIds != null 
+                ? ruleIds.Select(id => _ruleProvider.GetRule(id)).Where(r => r != null).Cast<Rule>().ToList()
+                : _ruleProvider.GetEnabledRules().ToList();
+
+            RulesApplied = allRules.Count;
             
-            if (enabledRules.Count == 0)
+            if (allRules.Count == 0)
             {
-                AddLog("No enabled rules found!", AnalysisLogLevel.Warning);
-                AddLog("Check that rules are loaded in the Rules tab", AnalysisLogLevel.Info);
+                AddLog("No rules selected for analysis!", AnalysisLogLevel.Warning);
+                AddLog("Please select at least one rule", AnalysisLogLevel.Info);
             }
             else
             {
-                AddLog($"Applying {enabledRules.Count} rule(s)...", AnalysisLogLevel.Info);
-                var rulesWithContent = enabledRules.Where(r => !string.IsNullOrEmpty(r.PromptContent)).ToList();
-                if (rulesWithContent.Count < enabledRules.Count)
+                AddLog($"Applying {allRules.Count} rule(s)...", AnalysisLogLevel.Info);
+                var rulesWithContent = allRules.Where(r => !string.IsNullOrEmpty(r.PromptContent)).ToList();
+                if (rulesWithContent.Count < allRules.Count)
                 {
-                    AddLog($"Warning: {enabledRules.Count - rulesWithContent.Count} rule(s) have no prompt content", AnalysisLogLevel.Warning);
+                    AddLog($"Warning: {allRules.Count - rulesWithContent.Count} rule(s) have no prompt content", AnalysisLogLevel.Warning);
                 }
             }
 
@@ -294,8 +314,9 @@ public partial class AnalysisViewModel : ObservableObject
             var totalWorkItems = diff.Files
                 .Where(f => !string.IsNullOrEmpty(f.Language))
                 .GroupBy(f => f.Language!)
-                .Sum(g => g.Count() * _ruleProvider.GetRulesByLanguage(g.Key)
-                    .Count(r => r.Enabled && !string.IsNullOrEmpty(r.PromptContent)));
+                .Sum(g => g.Count() * (ruleIds != null 
+                    ? ruleIds.Count(id => _ruleProvider.GetRule(id)?.Language.Equals(g.Key, StringComparison.OrdinalIgnoreCase) == true)
+                    : _ruleProvider.GetRulesByLanguage(g.Key).Count(r => r.Enabled && !string.IsNullOrEmpty(r.PromptContent))));
 
             // Initialize progress tracking
             ProgressValue = 0;
@@ -324,7 +345,7 @@ public partial class AnalysisViewModel : ObservableObject
             progressReporter.SetTotalWorkItems(totalWorkItems);
             progressReporter.SetFileTree(FileTreeNodes);
 
-            var result = await _codeReviewService.AnalyzeDiffAsync(diff, progressReporter, cancellationToken);
+            var result = await _codeReviewService.AnalyzeDiffAsync(diff, ruleIds, progressReporter, cancellationToken);
 
             CurrentResult = result;
             UpdateGroupedIssues();
@@ -337,7 +358,7 @@ public partial class AnalysisViewModel : ObservableObject
                 ProgressMessage = $"Analysis complete. Found {TotalIssues} issue(s) in {result.Duration?.TotalSeconds:F1}s";
                 
                 // Automatically switch to Results tab if we found issues
-                 SelectedTabIndex = 1;
+                SelectedTabIndex = 1;
             }
             else
             {

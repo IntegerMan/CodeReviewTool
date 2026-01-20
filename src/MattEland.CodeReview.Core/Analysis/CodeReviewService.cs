@@ -60,8 +60,18 @@ public sealed class CodeReviewService : ICodeReviewService
     }
 
     /// <inheritdoc />
+    public Task<ReviewResult> AnalyzeDiffAsync(
+        GitDiff diff,
+        IAnalysisProgressReporter? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
+        return AnalyzeDiffAsync(diff, selectedRuleIds: null, progressReporter, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<ReviewResult> AnalyzeDiffAsync(
         GitDiff diff,
+        IEnumerable<string>? selectedRuleIds,
         IAnalysisProgressReporter? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
@@ -70,9 +80,11 @@ public sealed class CodeReviewService : ICodeReviewService
         var allIssues = new List<Issue>();
         var appliedRules = new List<Rule>();
         var errors = new List<string>();
+        var selectedRuleIdSet = selectedRuleIds?.ToHashSet();
 
-        _logger.LogInformation("Starting review {ReviewId} with {FileCount} files",
-            reviewId, diff.Files.Count);
+        _logger.LogInformation("Starting review {ReviewId} with {FileCount} files, {RuleFilter}",
+            reviewId, diff.Files.Count, 
+            selectedRuleIdSet != null ? $"{selectedRuleIdSet.Count} selected rules" : "all enabled rules");
 
         try
         {
@@ -85,14 +97,12 @@ public sealed class CodeReviewService : ICodeReviewService
             // Calculate total work items for progress tracking
             var totalWorkItems = filesByLanguage.Values
                 .Sum(files => files.Count * 
-                    _ruleProvider.GetRulesByLanguage(files.First().Language!)
-                        .Count(r => r.Enabled && !string.IsNullOrEmpty(r.PromptContent)));
+                    GetFilteredRules(_ruleProvider.GetRulesByLanguage(files.First().Language!), selectedRuleIdSet).Count());
             var currentWorkItem = 0;
 
             foreach (var (language, files) in filesByLanguage)
             {
-                var rules = _ruleProvider.GetRulesByLanguage(language)
-                    .Where(r => r.Enabled && !string.IsNullOrEmpty(r.PromptContent))
+                var rules = GetFilteredRules(_ruleProvider.GetRulesByLanguage(language), selectedRuleIdSet)
                     .ToList();
 
                 _logger.LogDebug("Analyzing {FileCount} {Language} files with {RuleCount} rules",
@@ -169,6 +179,21 @@ public sealed class CodeReviewService : ICodeReviewService
                 ErrorMessage = ex.Message
             };
         }
+    }
+
+    /// <summary>
+    /// Filters rules based on selected rule IDs, or returns all enabled rules if no selection.
+    /// </summary>
+    private static IEnumerable<Rule> GetFilteredRules(IEnumerable<Rule> rules, HashSet<string>? selectedRuleIds)
+    {
+        var enabledRules = rules.Where(r => r.Enabled && !string.IsNullOrEmpty(r.PromptContent));
+        
+        if (selectedRuleIds == null)
+        {
+            return enabledRules;
+        }
+        
+        return enabledRules.Where(r => selectedRuleIds.Contains(r.Id));
     }
 
     private async Task<(IEnumerable<Issue> Issues, string? Error)> AnalyzeFileWithRuleAsync(
