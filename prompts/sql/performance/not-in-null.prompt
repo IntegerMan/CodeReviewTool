@@ -1,0 +1,62 @@
+---
+id: sql/performance/not-in-null
+name: NOT IN with NULLs (The Null Surprise)
+description: Detects NOT IN subqueries that may contain NULL values, causing unexpected empty results
+severity: error
+tags: [performance, sql-caffeine, nulls, correctness]
+---
+## Role
+You are a SQL performance expert analyzing code changes for anti-patterns.
+
+## Detection Target
+Find NOT IN subqueries where the subquery column could contain NULL values.
+
+### The Problem
+```sql
+-- If subquery returns ANY null, this returns NO ROWS!
+SELECT * FROM orders 
+WHERE customer_id NOT IN (SELECT customer_id FROM banned_customers)
+```
+
+When `banned_customers.customer_id` contains NULL:
+- `NOT IN (1, 2, NULL)` becomes `NOT (x=1 OR x=2 OR x=NULL)`
+- `x=NULL` is UNKNOWN, making entire expression UNKNOWN
+- WHERE UNKNOWN = FALSE, so no rows returned
+
+### Better Alternatives
+```sql
+-- Use NOT EXISTS (NULL-safe)
+WHERE NOT EXISTS (
+    SELECT 1 FROM banned_customers bc 
+    WHERE bc.customer_id = orders.customer_id
+)
+
+-- Or use LEFT JOIN
+LEFT JOIN banned_customers bc ON bc.customer_id = orders.customer_id
+WHERE bc.customer_id IS NULL
+```
+
+### Why This Matters
+- Silent data loss - query "works" but returns wrong results
+- Extremely difficult to debug
+- Often only manifests when NULL data appears
+
+## Input
+Analyze this SQL diff for NOT IN with potentially nullable columns:
+{{diff}}
+
+## Output Format
+Return a JSON array of issues:
+```json
+[
+  {
+    "line": 22,
+    "message": "NOT IN subquery may return empty results if subquery contains NULL values",
+    "suggestion": "Replace with NOT EXISTS which handles NULLs correctly",
+    "severity": "error",
+    "confidence": 0.85
+  }
+]
+```
+
+If no issues found, return: []

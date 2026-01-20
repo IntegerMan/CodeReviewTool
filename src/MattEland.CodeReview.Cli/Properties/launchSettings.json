@@ -1,0 +1,29 @@
+{
+  "profiles": {
+    "MattEland.CodeReview.Cli": {
+      "commandName": "Project",
+      "commandLineArgs": "analyze",
+      "workingDirectory": "${ProjectDir}"
+    },
+    "MattEland.CodeReview.Cli (Rules)": {
+      "commandName": "Project",
+      "commandLineArgs": "rules",
+      "workingDirectory": "${ProjectDir}"
+    },
+    "MattEland.CodeReview.Cli (Analyze with Base)": {
+      "commandName": "Project",
+      "commandLineArgs": "analyze --base develop",
+      "workingDirectory": "${ProjectDir}"
+    },
+    "MattEland.CodeReview.Cli (Analyze JSON Output)": {
+      "commandName": "Project",
+      "commandLineArgs": "analyze --output json",
+      "workingDirectory": "${ProjectDir}"
+    },
+    "MattEland.CodeReview.Cli (Analyze Verbose)": {
+      "commandName": "Project",
+      "commandLineArgs": "analyze --verbose",
+      "workingDirectory": "${ProjectDir}"
+    }
+  }
+}

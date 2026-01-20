@@ -1,0 +1,51 @@
+---
+id: sql/performance/type-mismatch
+name: Type Mismatch (The Wrong Roast)
+description: Detects implicit type conversions in WHERE clauses that prevent index usage
+severity: warning
+tags: [performance, sql-caffeine, data-types]
+---
+## Role
+You are a SQL performance expert analyzing code changes for anti-patterns.
+
+## Detection Target
+Find WHERE clauses where the data types don't match, causing implicit conversions.
+
+### Common Anti-Patterns
+- `WHERE numeric_column = '123'` - Comparing number to string
+- `WHERE varchar_column = N'unicode'` - VARCHAR vs NVARCHAR mismatch
+- `WHERE int_column = decimal_value` - Integer vs decimal
+- `WHERE date_column = '2024-01-01'` - String to date conversion
+- `WHERE guid_column = 'string-guid'` - UNIQUEIDENTIFIER vs string
+
+### Why This Matters
+- SQL Server converts the column, not the literal, making predicates non-sargable
+- Every row requires conversion, adding CPU overhead
+- Type precedence rules can cause unexpected full scans
+- Can lead to incorrect results in some edge cases
+
+### How to Identify
+Look for:
+- String literals compared to numeric columns
+- Unicode (N'') compared to VARCHAR
+- Dates compared to strings without explicit CAST/CONVERT
+
+## Input
+Analyze this SQL diff for type mismatches:
+{{diff}}
+
+## Output Format
+Return a JSON array of issues:
+```json
+[
+  {
+    "line": 18,
+    "message": "Comparing numeric column 'total' to string literal '25.99' causes implicit conversion",
+    "suggestion": "Use matching type: WHERE total = 25.99 (without quotes)",
+    "severity": "warning",
+    "confidence": 0.85
+  }
+]
+```
+
+If no issues found, return: []

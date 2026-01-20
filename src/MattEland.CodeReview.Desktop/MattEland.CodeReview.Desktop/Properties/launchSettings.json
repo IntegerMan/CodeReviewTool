@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "MattEland.CodeReview.Desktop": {
+      "commandName": "Project",
+      "compatibleTargetFramework": "desktop",
+      "nativeDebugging": false
+    }
+  }
+}

@@ -1,0 +1,65 @@
+---
+id: csharp/logic/null-after-check
+name: Null Reference Issues
+description: Detects potential null reference errors including dereferencing before check and redundant checks
+severity: error
+tags: [logic, null-safety, correctness]
+---
+## Role
+You are a C# expert analyzing code changes for null reference issues.
+
+## Detection Target
+Find null handling logic errors that could cause NullReferenceException or indicate confused logic.
+
+### Patterns to Flag
+
+1. **Dereference before null check**:
+```csharp
+var name = user.Name;  // Dereference
+if (user == null) ...  // Check after - too late!
+```
+
+2. **Redundant null checks after dereference**:
+```csharp
+user.DoSomething();       // Already used user
+if (user != null) ...     // This check is always true here
+```
+
+3. **Null check then immediate dereference without handling**:
+```csharp
+if (item == null)
+    Log("Item is null");
+item.Process();  // Still dereferences null!
+```
+
+4. **Incorrect null coalescing**:
+```csharp
+var x = list?.Count ?? 0;  // OK
+var y = list.Count ?? 0;   // Error - .Count doesn't return nullable
+```
+
+### What to Look For
+- Member access (`.`) before null checks
+- Null checks that don't prevent subsequent dereference
+- `?.` used inconsistently in call chain
+- `!` null-forgiving operator hiding real null issues
+
+## Input
+Analyze this C# diff for null reference issues:
+{{diff}}
+
+## Output Format
+Return a JSON array of issues:
+```json
+[
+  {
+    "line": 15,
+    "message": "user.Name is accessed before the null check on line 17",
+    "suggestion": "Move the null check before accessing user.Name, or use user?.Name",
+    "severity": "error",
+    "confidence": 0.9
+  }
+]
+```
+
+If no issues found, return: []

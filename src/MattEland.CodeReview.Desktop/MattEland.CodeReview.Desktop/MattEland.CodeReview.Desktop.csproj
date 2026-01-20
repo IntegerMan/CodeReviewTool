@@ -1,0 +1,31 @@
+<Project Sdk="Uno.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\MattEland.CodeReview.Core\MattEland.CodeReview.Core.csproj" />
+  </ItemGroup>
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-desktop</TargetFrameworks>
+
+    <OutputType>Exe</OutputType>
+    <UnoSingleProject>true</UnoSingleProject>
+
+    <!-- Display name -->
+    <ApplicationTitle>MattEland.CodeReview.Desktop</ApplicationTitle>
+    <!-- App Identifier -->
+    <ApplicationId>com.companyname.matteland-codereview-desktop</ApplicationId>
+    <!-- Versions -->
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <!-- Package Publisher -->
+    <ApplicationPublisher>MattEland.CodeReview.Desktop</ApplicationPublisher>
+    <!-- Package Description -->
+    <Description>MattEland.CodeReview.Desktop powered by Uno Platform.</Description>
+
+    <!--
+      UnoFeatures let's you quickly add and manage implicit package references based on the features you want to use.
+      https://aka.platform.uno/singleproject-features
+    -->
+    <UnoFeatures>
+    </UnoFeatures>
+  </PropertyGroup>
+
+</Project>

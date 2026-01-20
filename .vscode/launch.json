@@ -1,0 +1,65 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": ".NET Core Launch (CLI - Analyze)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/MattEland.CodeReview.Cli/bin/Debug/net10.0/MattEland.CodeReview.Cli.dll",
+      "args": ["analyze"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": ".NET Core Launch (CLI - Rules)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/MattEland.CodeReview.Cli/bin/Debug/net10.0/MattEland.CodeReview.Cli.dll",
+      "args": ["rules"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": ".NET Core Launch (CLI - Analyze Verbose)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/MattEland.CodeReview.Cli/bin/Debug/net10.0/MattEland.CodeReview.Cli.dll",
+      "args": ["analyze", "--verbose"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": ".NET Core Launch (CLI - Analyze JSON)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/MattEland.CodeReview.Cli/bin/Debug/net10.0/MattEland.CodeReview.Cli.dll",
+      "args": ["analyze", "--output", "json"],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": ".NET Core Launch (Desktop)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/MattEland.CodeReview.Desktop/MattEland.CodeReview.Desktop/bin/Debug/net10.0-desktop/MattEland.CodeReview.Desktop.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      "name": ".NET Core Attach",
+      "type": "coreclr",
+      "request": "attach"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+---
+id: sql/performance/non-sargable
+name: Non-Sargable Predicates (The Function Grind)
+description: Detects function calls on indexed columns that prevent index seeks
+severity: warning
+tags: [performance, sql-caffeine, indexing]
+---
+## Role
+You are a SQL performance expert analyzing code changes for anti-patterns.
+
+## Detection Target
+Find WHERE clauses that wrap indexed columns in functions, preventing the query optimizer from using index seeks.
+
+### Common Anti-Patterns
+- `WHERE YEAR(date_column) = 2024` - Use range: `WHERE date_column >= '2024-01-01' AND date_column < '2025-01-01'`
+- `WHERE UPPER(name) = 'VALUE'` - Use case-insensitive collation or computed column
+- `WHERE CONVERT(VARCHAR, id) = '123'` - Remove conversion, compare as original type
+- `WHERE ISNULL(column, 0) = 0` - Use `WHERE column IS NULL OR column = 0`
+- `WHERE LEFT(code, 3) = 'ABC'` - Use `WHERE code LIKE 'ABC%'`
+- `WHERE DATEDIFF(day, created, GETDATE()) > 30` - Use range comparison
+
+### Why This Matters
+- Index seeks become index scans (examines every row)
+- Performance degrades from O(log n) to O(n)
+- CPU overhead from function execution per row
+
+## Input
+Analyze this SQL diff for non-sargable predicates:
+{{diff}}
+
+## Output Format
+Return a JSON array of issues:
+```json
+[
+  {
+    "line": 23,
+    "message": "YEAR(order_date) prevents index seek on order_date column",
+    "suggestion": "Use range comparison: WHERE order_date >= '2024-01-01' AND order_date < '2025-01-01'",
+    "severity": "warning",
+    "confidence": 0.95
+  }
+]
+```
+
+If no issues found, return: []

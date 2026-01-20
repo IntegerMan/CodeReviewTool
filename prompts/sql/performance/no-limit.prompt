@@ -1,0 +1,59 @@
+---
+id: sql/performance/no-limit
+name: No LIMIT/TOP (The Bottomless Cup)
+description: Detects queries that return unbounded result sets
+severity: warning
+tags: [performance, sql-caffeine, pagination]
+---
+## Role
+You are a SQL performance expert analyzing code changes for anti-patterns.
+
+## Detection Target
+Find SELECT queries that return potentially unbounded result sets.
+
+### When to Flag
+- SELECT without TOP/LIMIT that could return many rows
+- Queries used in application code (not reports)
+- JOINs that could multiply row counts
+- Queries against large tables without clear row limiting
+
+### When NOT to Flag
+- Queries with TOP or LIMIT
+- Queries with OFFSET/FETCH
+- EXISTS subqueries (stop at first match)
+- COUNT queries
+- Queries returning single row (WHERE on PK)
+- Aggregate queries (GROUP BY without raw data)
+- INSERT...SELECT (intentionally getting all rows)
+- Queries for small lookup tables
+
+### Why This Matters
+- Memory exhaustion on application server
+- Network saturation transferring large result sets
+- Database blocking while reading millions of rows
+- Application timeouts and failures
+
+### What to Look For
+- New queries that SELECT from large tables
+- Missing pagination in list/search queries
+- Queries that worked on small data but will fail at scale
+
+## Input
+Analyze this SQL diff for unbounded queries:
+{{diff}}
+
+## Output Format
+Return a JSON array of issues:
+```json
+[
+  {
+    "line": 5,
+    "message": "Query returns unbounded results from 'orders' table - could return millions of rows",
+    "suggestion": "Add TOP/LIMIT clause or implement pagination with OFFSET/FETCH",
+    "severity": "warning",
+    "confidence": 0.7
+  }
+]
+```
+
+If no issues found, return: []
