@@ -42,23 +42,24 @@ public sealed partial class IssueCard : UserControl
 
     private static (Color foreground, Color background, string text) GetSeverityColors(Severity severity)
     {
+        // Dark mode optimized colors
         return severity switch
         {
             Severity.Critical => (
-                Color.FromArgb(255, 196, 43, 28),   // #C42B1C
-                Color.FromArgb(255, 253, 231, 233), // #FDE7E9
+                Color.FromArgb(255, 255, 107, 107),  // #FF6B6B - bright red foreground
+                Color.FromArgb(255, 68, 39, 38),    // #442726 - dark red background
                 "Critical"),
             Severity.Error => (
-                Color.FromArgb(255, 157, 93, 0),    // #9D5D00
-                Color.FromArgb(255, 255, 244, 206), // #FFF4CE
+                Color.FromArgb(255, 255, 179, 102), // #FFB366 - bright amber foreground
+                Color.FromArgb(255, 74, 60, 26),   // #4A3C1A - dark amber background
                 "Error"),
             Severity.Warning => (
-                Color.FromArgb(255, 15, 123, 15),   // #0F7B0F
-                Color.FromArgb(255, 223, 246, 221), // #DFF6DD
+                Color.FromArgb(255, 107, 203, 119), // #6BCB77 - bright green foreground
+                Color.FromArgb(255, 29, 61, 29),   // #1D3D1D - dark green background
                 "Warning"),
             _ => (
-                Color.FromArgb(255, 97, 97, 97),    // #616161
-                Color.FromArgb(255, 240, 240, 240), // #F0F0F0
+                Color.FromArgb(255, 176, 176, 176), // #B0B0B0 - gray foreground
+                Color.FromArgb(255, 58, 58, 58),   // #3A3A3A - dark gray background
                 "Info")
         };
     }

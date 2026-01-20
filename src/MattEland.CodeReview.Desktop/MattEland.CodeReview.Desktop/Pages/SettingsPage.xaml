@@ -4,6 +4,7 @@
       xmlns:local="using:MattEland.CodeReview.Desktop.Pages"
       xmlns:vm="using:MattEland.CodeReview.Desktop.ViewModels"
       xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
+      x:Name="PageRoot"
       Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid>

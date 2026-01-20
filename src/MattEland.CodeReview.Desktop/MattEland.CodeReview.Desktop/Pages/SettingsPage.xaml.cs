@@ -10,6 +10,7 @@ public sealed partial class SettingsPage : Page
     public SettingsPage()
     {
         ViewModel = App.Services.GetRequiredService<SettingsViewModel>();
+        this.DataContext = ViewModel;
         this.InitializeComponent();
     }
 

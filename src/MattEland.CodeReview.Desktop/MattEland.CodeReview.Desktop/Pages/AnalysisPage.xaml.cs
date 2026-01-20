@@ -1,4 +1,5 @@
 using MattEland.CodeReview.Desktop.ViewModels;
+using MattEland.CodeReview.Core.Models;
 using Windows.UI;
 
 namespace MattEland.CodeReview.Desktop.Pages;
@@ -10,6 +11,7 @@ public sealed partial class AnalysisPage : Page
     public AnalysisPage()
     {
         ViewModel = App.Services.GetRequiredService<AnalysisViewModel>();
+        this.DataContext = ViewModel;
         this.InitializeComponent();
     }
 
@@ -54,13 +56,81 @@ public sealed partial class AnalysisPage : Page
     public static string FormatTime(DateTime time) => time.ToString("HH:mm:ss");
 
     /// <summary>
+    /// Gets the icon for a file system node.
+    /// </summary>
+    public static string GetNodeIcon(bool isFile) => isFile ? "\uE8A5" : "\uE8B7";
+
+    /// <summary>
+    /// Gets the status icon for a file.
+    /// </summary>
+    public static string GetStatusIcon(FileAnalysisStatus status) => status switch
+    {
+        FileAnalysisStatus.Running => "\uE72C",   // Sync icon
+        FileAnalysisStatus.Finished => "\uE73E",  // Checkmark icon
+        _ => "\uE823"                              // Clock icon (Pending)
+    };
+
+    /// <summary>
+    /// Gets the color for a file status.
+    /// </summary>
+    public static Color GetStatusColor(FileAnalysisStatus status) => status switch
+    {
+        FileAnalysisStatus.Running => Color.FromArgb(255, 0, 120, 212),    // Blue
+        FileAnalysisStatus.Finished => Color.FromArgb(255, 107, 203, 119), // Green (dark mode friendly)
+        _ => Color.FromArgb(255, 128, 128, 128)                            // Gray
+    };
+
+    /// <summary>
     /// Gets the color for a log level.
     /// </summary>
     public static Color GetLogColor(AnalysisLogLevel level) => level switch
     {
-        AnalysisLogLevel.Success => Color.FromArgb(255, 15, 123, 15),   // Green
-        AnalysisLogLevel.Warning => Color.FromArgb(255, 157, 93, 0),   // Amber
-        AnalysisLogLevel.Error => Color.FromArgb(255, 196, 43, 28),    // Red
-        _ => Color.FromArgb(255, 97, 97, 97)                           // Gray
+        AnalysisLogLevel.Success => Color.FromArgb(255, 107, 203, 119),  // Green
+        AnalysisLogLevel.Warning => Color.FromArgb(255, 255, 179, 102),  // Amber
+        AnalysisLogLevel.Error => Color.FromArgb(255, 255, 107, 107),    // Red
+        _ => Color.FromArgb(255, 176, 176, 176)                          // Gray
     };
+
+    /// <summary>
+    /// Gets the icon for a file change type.
+    /// </summary>
+    public static string GetChangeTypeIcon(FileChangeType changeType) => changeType switch
+    {
+        FileChangeType.Added => "\uE710",     // + Add icon
+        FileChangeType.Deleted => "\uE738",   // - Delete icon
+        FileChangeType.Renamed => "\uE8AC",   // Rename icon
+        FileChangeType.Copied => "\uE8C8",    // Copy icon
+        _ => "\uE70F"                         // Edit icon (Modified)
+    };
+
+    /// <summary>
+    /// Gets the color for a file change type.
+    /// </summary>
+    public static Color GetChangeTypeColor(FileChangeType changeType) => changeType switch
+    {
+        FileChangeType.Added => Color.FromArgb(255, 107, 203, 119),    // Green
+        FileChangeType.Deleted => Color.FromArgb(255, 255, 107, 107),  // Red
+        FileChangeType.Renamed => Color.FromArgb(255, 138, 180, 248),  // Blue
+        FileChangeType.Copied => Color.FromArgb(255, 138, 180, 248),   // Blue
+        _ => Color.FromArgb(255, 255, 179, 102)                        // Amber (Modified)
+    };
+
+    /// <summary>
+    /// Formats line changes as +N/-N string.
+    /// </summary>
+    public static string FormatLineChanges(int added, int deleted) => 
+        $"+{added}/-{deleted}";
+
+    /// <summary>
+    /// Returns Visible if there are any line changes.
+    /// </summary>
+    public static Visibility HasLineChanges(int added, int deleted) => 
+        (added > 0 || deleted > 0) ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// Returns Visible if is a file node.
+    /// </summary>
+    public static Visibility VisibleIfFile(bool isFile) => 
+        isFile ? Visibility.Visible : Visibility.Collapsed;
 }
+

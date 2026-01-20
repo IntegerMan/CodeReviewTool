@@ -120,6 +120,11 @@ public partial class AnalysisViewModel : ObservableObject
     public ObservableCollection<AnalysisLogEntry> AnalysisLog { get; } = [];
 
     /// <summary>
+    /// Root nodes for the file tree sidebar.
+    /// </summary>
+    public ObservableCollection<FileTreeNode> FileTreeNodes { get; } = [];
+
+    /// <summary>
     /// Number of files found in the diff.
     /// </summary>
     [ObservableProperty]
@@ -136,6 +141,42 @@ public partial class AnalysisViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private bool _showDetailedLog = true;
+
+    /// <summary>
+    /// Current progress value (0 to ProgressMaximum).
+    /// </summary>
+    [ObservableProperty]
+    private double _progressValue;
+
+    /// <summary>
+    /// Maximum progress value (total work items).
+    /// </summary>
+    [ObservableProperty]
+    private double _progressMaximum = 100;
+
+    /// <summary>
+    /// Name of the file currently being analyzed.
+    /// </summary>
+    [ObservableProperty]
+    private string _currentFileName = string.Empty;
+
+    /// <summary>
+    /// ID of the rule currently being applied.
+    /// </summary>
+    [ObservableProperty]
+    private string _currentRuleId = string.Empty;
+
+    /// <summary>
+    /// Number of completed work items (rule applications).
+    /// </summary>
+    [ObservableProperty]
+    private int _completedWorkItems;
+
+    /// <summary>
+    /// Total number of work items (rule applications).
+    /// </summary>
+    [ObservableProperty]
+    private int _totalWorkItems;
 
     /// <summary>
     /// Currently selected severity filter.
@@ -256,9 +297,20 @@ public partial class AnalysisViewModel : ObservableObject
                 .Sum(g => g.Count() * _ruleProvider.GetRulesByLanguage(g.Key)
                     .Count(r => r.Enabled && !string.IsNullOrEmpty(r.PromptContent)));
 
+            // Initialize progress tracking
+            ProgressValue = 0;
+            ProgressMaximum = totalWorkItems;
+            TotalWorkItems = totalWorkItems;
+            CompletedWorkItems = 0;
+            CurrentFileName = string.Empty;
+            CurrentRuleId = string.Empty;
+            
+            BuildFileTree(diff.Files);
+
             // Create progress reporter
             var progressReporter = new AnalysisProgressReporter(this);
             progressReporter.SetTotalWorkItems(totalWorkItems);
+            progressReporter.SetFileTree(FileTreeNodes);
 
             var result = await _codeReviewService.AnalyzeDiffAsync(diff, progressReporter, cancellationToken);
 
@@ -318,6 +370,24 @@ public partial class AnalysisViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Adds a detailed log entry with LLM prompt/response data.
+    /// </summary>
+    public void AddLog(string message, AnalysisLogLevel level, string? filePath, string? ruleId, 
+        string? llmPrompt = null, string? llmResponse = null)
+    {
+        AnalysisLog.Add(new AnalysisLogEntry
+        {
+            Timestamp = DateTime.Now,
+            Message = message,
+            Level = level,
+            FilePath = filePath,
+            RuleId = ruleId,
+            LlmPrompt = llmPrompt,
+            LlmResponse = llmResponse
+        });
+    }
+
+    /// <summary>
     /// Clears the severity filter.
     /// </summary>
     [RelayCommand]
@@ -360,12 +430,20 @@ public partial class AnalysisViewModel : ObservableObject
 
         foreach (var group in groups)
         {
+            var issues = group.OrderByDescending(i => i.Severity).ThenBy(i => i.StartLine).ToList();
             GroupedIssues.Add(new FileIssueGroup
             {
                 FilePath = group.Key,
                 FileName = Path.GetFileName(group.Key),
-                Issues = [.. group.OrderByDescending(i => i.Severity).ThenBy(i => i.StartLine)]
+                Issues = issues
             });
+
+            // Update the file tree node with the issue count
+            var node = FindFileNode(group.Key);
+            if (node != null)
+            {
+                node.IssueCount = issues.Count;
+            }
         }
     }
 
@@ -380,6 +458,76 @@ public partial class AnalysisViewModel : ObservableObject
         OnPropertyChanged(nameof(CurrentBranch));
         OnPropertyChanged(nameof(CanRunAnalysis));
         RunAnalysisCommand.NotifyCanExecuteChanged();
+    }
+
+    private void BuildFileTree(IEnumerable<FileChange> files)
+    {
+        FileTreeNodes.Clear();
+        var folderMap = new Dictionary<string, FileTreeNode>();
+
+        foreach (var file in files.OrderBy(f => f.Path))
+        {
+            var parts = file.Path.Split('/', '\\');
+            var currentPath = "";
+            FileTreeNode? parent = null;
+
+            for (int i = 0; i < parts.Length; i++)
+            {
+                var part = parts[i];
+                currentPath = string.IsNullOrEmpty(currentPath) ? part : $"{currentPath}/{part}";
+                var isLast = i == parts.Length - 1;
+
+                if (!folderMap.TryGetValue(currentPath, out var node))
+                {
+                    node = new FileTreeNode
+                    {
+                        Name = part,
+                        FullPath = currentPath,
+                        IsFile = isLast,
+                        Parent = parent,
+                        Status = FileAnalysisStatus.Pending,
+                        ChangeType = isLast ? file.ChangeType : FileChangeType.Modified,
+                        LinesAdded = isLast ? file.LinesAdded : 0,
+                        LinesDeleted = isLast ? file.LinesDeleted : 0
+                    };
+                    folderMap[currentPath] = node;
+
+                    if (parent == null)
+                    {
+                        FileTreeNodes.Add(node);
+                    }
+                    else
+                    {
+                        parent.Children.Add(node);
+                    }
+                }
+                parent = node;
+            }
+        }
+    }
+
+    public FileTreeNode? FindFileNode(string filePath)
+    {
+        // Simple search in the map-like structure would be better, 
+        // but we can just traverse the tree or use a flattened approach if needed.
+        // Given BuildFileTree just ran, we could have shared the map, 
+        // but for now let's just do a recursive search.
+        return FindFileNodeRecursive(FileTreeNodes, filePath);
+    }
+
+    private FileTreeNode? FindFileNodeRecursive(IEnumerable<FileTreeNode> nodes, string filePath)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.IsFile && (node.FullPath == filePath || node.FullPath.Replace('\\', '/') == filePath.Replace('\\', '/')))
+            {
+                return node;
+            }
+            
+            var found = FindFileNodeRecursive(node.Children, filePath);
+            if (found != null) return found;
+        }
+        return null;
     }
 }
 
@@ -406,6 +554,19 @@ public class AnalysisLogEntry
     public required DateTime Timestamp { get; init; }
     public required string Message { get; init; }
     public required AnalysisLogLevel Level { get; init; }
+    
+    // Expandable detail properties
+    public string? LlmPrompt { get; init; }
+    public string? LlmResponse { get; init; }
+    public string? FilePath { get; init; }
+    public string? RuleId { get; init; }
+    public int? LinesAdded { get; init; }
+    public int? LinesDeleted { get; init; }
+    
+    /// <summary>
+    /// Whether this entry has expandable details.
+    /// </summary>
+    public bool HasDetails => !string.IsNullOrEmpty(LlmPrompt) || !string.IsNullOrEmpty(LlmResponse);
 }
 
 /// <summary>

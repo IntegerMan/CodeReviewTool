@@ -10,6 +10,7 @@ public sealed partial class RulesPage : Page
     public RulesPage()
     {
         ViewModel = App.Services.GetRequiredService<RulesViewModel>();
+        this.DataContext = ViewModel;
         this.InitializeComponent();
     }
 

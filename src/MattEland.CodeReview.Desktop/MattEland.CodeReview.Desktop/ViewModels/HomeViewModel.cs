@@ -104,6 +104,8 @@ public partial class HomeViewModel : ObservableObject
             OnPropertyChanged(nameof(RepositoryPath));
             OnPropertyChanged(nameof(RepositoryDisplayName));
             OnPropertyChanged(nameof(CurrentBranch));
+
+            NavigateToAnalysis();
         }
     }
 
