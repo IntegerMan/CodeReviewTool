@@ -218,7 +218,7 @@ public sealed class CodeReviewService : ICodeReviewService
             var responsePreview = TruncateForDisplay(responseText, 500);
             progressReporter?.ReportLlmResponse(file.Path, rule.Id, responsePreview);
             
-            var issues = ParseIssuesFromResponse(responseText, file.Path, rule, progressReporter);
+            var issues = ParseIssuesFromResponse(responseText, file, rule, progressReporter);
             progressReporter?.ReportIssues(file.Path, rule.Id, issues);
             
             return (issues, null);
@@ -243,14 +243,29 @@ public sealed class CodeReviewService : ICodeReviewService
 
     private static string GetSystemPrompt() => """
         You are an expert code reviewer analyzing git diffs for potential issues.
-        You focus on logic errors, security issues, and performance problems that static analysis tools miss.
+        Your specialty is finding issues that static analysis tools miss: logic errors,
+        subtle security vulnerabilities, architectural mistakes, and semantic problems.
+
+        CRITICAL GUIDELINES:
+        1. Only report issues you are CONFIDENT about (confidence >= 0.7)
+        2. If unsure, return an empty array []
+        3. Consider context: code using configuration/DI patterns is NOT hardcoding secrets
+        4. Focus on NEW or CHANGED code (lines with + prefix in the diff)
+        5. Do NOT report style issues, that's what linters are for
+        
+        LINE NUMBER INSTRUCTIONS:
+        The diff contains hunk headers like @@ -10,5 +12,7 @@ where +12 is the starting
+        line number in the NEW file. Count added lines (+) and context lines (space prefix)
+        from there. Return the ACTUAL SOURCE FILE line number, NOT the position in diff text.
+        
+        Example: If hunk starts @@ -1,3 +1,5 @@ and issue is on 3rd line with '+', that's line 3.
         
         When you find issues, respond with a JSON array of objects with these fields:
-        - line: (number or null) The line number in the diff where the issue occurs
+        - line: (number or null) The actual SOURCE FILE line number
         - message: (string) A clear description of the issue
         - suggestion: (string or null) How to fix the issue
         - severity: (string) One of: info, warning, error, critical
-        - confidence: (number) Your confidence from 0.0 to 1.0
+        - confidence: (number) Your confidence from 0.0 to 1.0 - be conservative
         
         If you find no issues, respond with an empty array: []
         
@@ -259,7 +274,7 @@ public sealed class CodeReviewService : ICodeReviewService
 
     private IEnumerable<Issue> ParseIssuesFromResponse(
         string response, 
-        string filePath, 
+        FileChange file, 
         Rule rule, 
         IAnalysisProgressReporter? progressReporter)
     {
@@ -281,16 +296,23 @@ public sealed class CodeReviewService : ICodeReviewService
             if (issueData == null)
                 return [];
 
-            return issueData.Select((data, index) => new Issue
+            // Filter out low-confidence issues (below 0.6 threshold)
+            const double minConfidence = 0.6;
+            var filteredIssues = issueData.Where(d => d.Confidence == null || d.Confidence >= minConfidence);
+
+            return filteredIssues.Select((data, index) => new Issue
             {
-                Id = $"{rule.Id}-{filePath.GetHashCode():X8}-{index}",
+                Id = $"{rule.Id}-{file.Path.GetHashCode():X8}-{index}",
                 RuleId = rule.Id,
-                FilePath = filePath,
+                FilePath = file.Path,
                 StartLine = data.Line,
                 Severity = ParseSeverity(data.Severity) ?? rule.DefaultSeverity,
                 Message = data.Message ?? "Issue detected",
                 Suggestion = data.Suggestion,
-                Confidence = data.Confidence
+                Confidence = data.Confidence,
+                CodeSnippet = data.Line.HasValue 
+                    ? DiffLineMapper.ExtractCodeSnippet(file.NewContent, data.Line.Value, contextLines: 3) 
+                    : null
             });
         }
         catch (JsonException ex)
@@ -302,7 +324,7 @@ public sealed class CodeReviewService : ICodeReviewService
                 response.Length > 200 ? response[..200] + "..." : response);
             
             // Report JSON parsing error
-            progressReporter?.ReportJsonParsingError(filePath, rule.Id, errorMessage, responsePreview);
+            progressReporter?.ReportJsonParsingError(file.Path, rule.Id, errorMessage, responsePreview);
             
             return [];
         }

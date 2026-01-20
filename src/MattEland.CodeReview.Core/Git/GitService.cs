@@ -44,7 +44,7 @@ public sealed class GitService : IGitService
                 allChanges[entry.Path] = entry;
             }
             
-            return CreateGitDiff(allChanges.Values, baseBranch, repo.Head.FriendlyName + " (with working changes)");
+            return CreateGitDiff(allChanges.Values, baseBranch, repo.Head.FriendlyName + " (with working changes)", repo);
         }, cancellationToken);
     }
 
@@ -73,7 +73,7 @@ public sealed class GitService : IGitService
                                (entry.OldPath != null && filePathSet.Contains(entry.OldPath)))
                 .ToList();
             
-            return CreateGitDiff(filteredFiles, baseBranch, repo.Head.FriendlyName);
+            return CreateGitDiff(filteredFiles, baseBranch, repo.Head.FriendlyName, repo);
         }, cancellationToken);
     }
 
@@ -101,8 +101,10 @@ public sealed class GitService : IGitService
         return repo.Info.WorkingDirectory?.TrimEnd(Path.DirectorySeparatorChar);
     }
 
-    private static GitDiff CreateGitDiff(IEnumerable<PatchEntryChanges> entries, string baseRef, string headRef)
+    private static GitDiff CreateGitDiff(IEnumerable<PatchEntryChanges> entries, string baseRef, string headRef, Repository repo)
     {
+        var workingDir = repo.Info.WorkingDirectory;
+        
         var files = entries.Select(entry => new FileChange
         {
             Path = entry.Path,
@@ -111,7 +113,8 @@ public sealed class GitService : IGitService
             DiffContent = entry.Patch,
             LinesAdded = entry.LinesAdded,
             LinesDeleted = entry.LinesDeleted,
-            Language = DetectLanguage(entry.Path)
+            Language = DetectLanguage(entry.Path),
+            NewContent = GetFileContent(workingDir, entry.Path, entry.Status)
         }).ToList();
 
         return new GitDiff
@@ -120,6 +123,25 @@ public sealed class GitService : IGitService
             HeadRef = headRef,
             Files = files
         };
+    }
+
+    private static string? GetFileContent(string? workingDir, string path, ChangeKind status)
+    {
+        // Don't try to read deleted files
+        if (status == ChangeKind.Deleted || string.IsNullOrEmpty(workingDir))
+            return null;
+        
+        var fullPath = Path.Combine(workingDir, path);
+        
+        try
+        {
+            return File.Exists(fullPath) ? File.ReadAllText(fullPath) : null;
+        }
+        catch
+        {
+            // File might be locked or inaccessible
+            return null;
+        }
     }
 
     private static FileChangeType MapChangeType(ChangeKind changeKind) => changeKind switch
