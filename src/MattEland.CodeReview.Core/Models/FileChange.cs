@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace MattEland.CodeReview.Core.Models;
 
 /// <summary>

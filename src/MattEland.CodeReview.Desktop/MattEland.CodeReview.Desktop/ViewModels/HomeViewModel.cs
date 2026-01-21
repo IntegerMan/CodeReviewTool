@@ -2,11 +2,14 @@ using MattEland.CodeReview.Desktop.Services;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 
+using System.ComponentModel;
+
 namespace MattEland.CodeReview.Desktop.ViewModels;
 
 /// <summary>
 /// ViewModel for the Home page with repository selection and recent repos.
 /// </summary>
+[Bindable(true)]
 public partial class HomeViewModel : ObservableObject
 {
     private readonly MainViewModel _mainViewModel;

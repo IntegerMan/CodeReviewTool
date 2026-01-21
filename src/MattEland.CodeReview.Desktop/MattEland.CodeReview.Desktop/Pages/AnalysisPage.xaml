@@ -97,7 +97,7 @@
                                    Style="{ThemeResource BodyTextBlockStyle}" HorizontalAlignment="Center" TextAlignment="Center"/>
                     </StackPanel>
 
-                    <muxc:InfoBar IsOpen="{x:Bind helpers:AnalysisPage.VisibleIfTrue(Wizard.IsBusy), Mode=OneWay}"
+                    <muxc:InfoBar IsOpen="{x:Bind Wizard.IsBusy, Mode=OneWay}"
                                   Severity="Informational"
                                   Title="Detecting Repository"
                                   Message="Please wait while we check for a repository..."
@@ -446,7 +446,7 @@
                     </StackPanel>
                 </Button>
 
-                <muxc:InfoBar Grid.Column="1" Margin="12,0" IsOpen="{x:Bind helpers:AnalysisPage.VisibleIfTrue(Wizard.HasError), Mode=OneWay}"
+                <muxc:InfoBar Grid.Column="1" Margin="12,0" IsOpen="{x:Bind Wizard.HasError, Mode=OneWay}"
                                Severity="Error" Title="Error" Message="{x:Bind Wizard.ErrorMessage, Mode=OneWay}" IsClosable="False"/>
 
                 <Button Grid.Column="2" Click="OnNextClicked" Style="{ThemeResource AccentButtonStyle}" 

@@ -1,8 +1,11 @@
+using System.ComponentModel;
+
 namespace MattEland.CodeReview.Desktop.ViewModels;
 
 /// <summary>
 /// Main application ViewModel managing app-level state and navigation.
 /// </summary>
+[Bindable(true)]
 public partial class MainViewModel : ObservableObject
 {
     private readonly IGitService _gitService;

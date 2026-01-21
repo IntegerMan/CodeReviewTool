@@ -1,8 +1,11 @@
+using System.ComponentModel;
+
 namespace MattEland.CodeReview.Desktop.ViewModels;
 
 /// <summary>
 /// ViewModel wrapper for a Rule with selection support for the wizard.
 /// </summary>
+[Bindable(true)]
 public partial class SelectableRuleViewModel : ObservableObject
 {
     private readonly Rule _rule;

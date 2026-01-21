@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace MattEland.CodeReview.Desktop.ViewModels;
 
 /// <summary>
@@ -14,6 +16,7 @@ public enum WizardStep
 /// <summary>
 /// ViewModel managing the wizard flow for code review analysis.
 /// </summary>
+[Bindable(true)]
 public partial class WizardViewModel : ObservableObject
 {
     private readonly MainViewModel _mainViewModel;

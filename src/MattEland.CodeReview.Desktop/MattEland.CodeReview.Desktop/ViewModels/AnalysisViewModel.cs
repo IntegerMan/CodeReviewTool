@@ -1,8 +1,11 @@
+using System.ComponentModel;
+
 namespace MattEland.CodeReview.Desktop.ViewModels;
 
 /// <summary>
 /// ViewModel for the Analysis page handling code review execution and results display.
 /// </summary>
+[Bindable(true)]
 public partial class AnalysisViewModel : ObservableObject
 {
     private readonly MainViewModel _mainViewModel;
