@@ -14,7 +14,7 @@
                        ExpandDirection="Down"
                        IsExpanded="False">
             <muxc:Expander.Header>
-                <Grid Padding="4,8" ColumnSpacing="12">
+                <Grid Padding="4,4" ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/> <!-- Severity Dot -->
                         <ColumnDefinition Width="Auto"/> <!-- Rule ID -->

@@ -12,6 +12,7 @@ public partial class AnalysisViewModel : ObservableObject
     private readonly ICodeReviewService _codeReviewService;
     private readonly IGitService _gitService;
     private readonly IRuleProvider _ruleProvider;
+    private CancellationTokenSource? _analysisCts;
 
     public AnalysisViewModel(
         MainViewModel mainViewModel, 
@@ -56,8 +57,15 @@ public partial class AnalysisViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanRunAnalysis))]
+    [NotifyPropertyChangedFor(nameof(CanCancelAnalysis))]
     [NotifyCanExecuteChangedFor(nameof(RunAnalysisCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelAnalysisCommand))]
     private bool _isAnalyzing;
+
+    /// <summary>
+    /// Whether analysis can be cancelled.
+    /// </summary>
+    public bool CanCancelAnalysis => IsAnalyzing;
 
     /// <summary>
     /// Progress message during analysis.
@@ -228,11 +236,27 @@ public partial class AnalysisViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Cancels the running analysis.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanCancelAnalysis))]
+    private void CancelAnalysis()
+    {
+        _analysisCts?.Cancel();
+        AddLog("Cancellation requested...", AnalysisLogLevel.Warning);
+        ProgressMessage = "Cancelling analysis...";
+    }
+
+    /// <summary>
     /// Runs the code review analysis with an optional filtered diff and rule set.
     /// </summary>
     public async Task RunAnalysisAsync(GitDiff? selectedDiff, IEnumerable<string>? ruleIds, CancellationToken cancellationToken)
     {
         if (!HasRepository || RepositoryPath == null) return;
+
+        // Create linked CTS so we can cancel internally while respecting external cancellation
+        _analysisCts?.Dispose();
+        _analysisCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var token = _analysisCts.Token;
 
         try
         {
@@ -348,7 +372,7 @@ public partial class AnalysisViewModel : ObservableObject
             progressReporter.SetTotalWorkItems(totalWorkItems);
             progressReporter.SetFileTree(FileTreeNodes);
 
-            var result = await _codeReviewService.AnalyzeDiffAsync(diff, ruleIds, progressReporter, cancellationToken);
+            var result = await _codeReviewService.AnalyzeDiffAsync(diff, ruleIds, progressReporter, token);
 
             CurrentResult = result;
             UpdateGroupedIssues();

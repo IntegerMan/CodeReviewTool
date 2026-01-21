@@ -42,6 +42,10 @@ public partial class App : Application
         await settingsService.LoadAsync();
 
         MainWindow = new Window();
+
+        // Set preferred window size for better real estate
+        MainWindow.AppWindow.Resize(new Windows.Graphics.SizeInt32 { Width = 1400, Height = 900 });
+
 #if DEBUG
         MainWindow.UseStudio();
 #endif

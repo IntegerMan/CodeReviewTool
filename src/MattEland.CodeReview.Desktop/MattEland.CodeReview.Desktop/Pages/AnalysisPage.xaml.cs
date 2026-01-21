@@ -52,6 +52,12 @@ public sealed partial class AnalysisPage : Page
         value ? Visibility.Collapsed : Visibility.Visible;
 
     /// <summary>
+    /// Returns Visible if current step does NOT match the parameter.
+    /// </summary>
+    public static Visibility VisibleIfNotStep(WizardStep current, int step) => 
+        (int)current != step ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
     /// Helper for bool binding - returns true if value is false.
     /// </summary>
     public static bool IsNotTrue(bool value) => !value;

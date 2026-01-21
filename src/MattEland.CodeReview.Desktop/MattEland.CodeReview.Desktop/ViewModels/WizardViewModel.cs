@@ -120,6 +120,64 @@ public partial class WizardViewModel : ObservableObject
     public ObservableCollection<SelectableFileTreeNode> FileNodes { get; } = [];
 
     /// <summary>
+    /// Filter text for file search.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FilteredFileNodes))]
+    private string _fileFilter = string.Empty;
+
+    /// <summary>
+    /// Total lines added across selected files.
+    /// </summary>
+    public int TotalLinesAdded => Files.Where(f => f.IsSelected).Sum(f => f.FileChange.LinesAdded);
+
+    /// <summary>
+    /// Total lines deleted across selected files.
+    /// </summary>
+    public int TotalLinesDeleted => Files.Where(f => f.IsSelected).Sum(f => f.FileChange.LinesDeleted);
+
+    /// <summary>
+    /// Filtered file nodes based on search text.
+    /// </summary>
+    public IEnumerable<SelectableFileTreeNode> FilteredFileNodes
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(FileFilter))
+                return FileNodes;
+
+            // Filter to nodes that match or have children that match
+            return FileNodes.SelectMany(FilterNode).ToList();
+        }
+    }
+
+    private IEnumerable<SelectableFileTreeNode> FilterNode(SelectableFileTreeNode node)
+    {
+        // If this node matches, include it
+        if (node.Name.Contains(FileFilter, StringComparison.OrdinalIgnoreCase))
+        {
+            yield return node;
+            yield break;
+        }
+
+        // Check children
+        var matchingChildren = node.Children.SelectMany(FilterNode).ToList();
+        if (matchingChildren.Count > 0)
+        {
+            // Create a filtered copy with only matching children
+            var filteredNode = new SelectableFileTreeNode(node.Name, node.FullPath, node.IsFile, node.FileViewModel)
+            {
+                Parent = node.Parent
+            };
+            foreach (var child in matchingChildren)
+            {
+                filteredNode.Children.Add(child);
+            }
+            yield return filteredNode;
+        }
+    }
+
+    /// <summary>
     /// Error message if something went wrong.
     /// </summary>
     [ObservableProperty]
@@ -323,6 +381,12 @@ public partial class WizardViewModel : ObservableObject
     /// </summary>
     private void LoadRulesForSelectedFiles()
     {
+        // Unsubscribe from existing rules
+        foreach (var rule in Rules)
+        {
+            rule.PropertyChanged -= OnRulePropertyChanged;
+        }
+        
         Rules.Clear();
 
         // Get unique languages from selected files
@@ -341,10 +405,24 @@ public partial class WizardViewModel : ObservableObject
 
         foreach (var rule in allRules)
         {
-            Rules.Add(new SelectableRuleViewModel(rule));
+            var selectableRule = new SelectableRuleViewModel(rule);
+            selectableRule.PropertyChanged += OnRulePropertyChanged;
+            Rules.Add(selectableRule);
         }
 
         OnPropertyChanged(nameof(SelectedRuleCount));
+        OnPropertyChanged(nameof(CanGoNext));
+        NextCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnRulePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SelectableRuleViewModel.IsSelected))
+        {
+            OnPropertyChanged(nameof(SelectedRuleCount));
+            OnPropertyChanged(nameof(CanGoNext));
+            NextCommand.NotifyCanExecuteChanged();
+        }
     }
 
     /// <summary>
@@ -358,6 +436,8 @@ public partial class WizardViewModel : ObservableObject
             file.IsSelected = true;
         }
         OnPropertyChanged(nameof(SelectedFileCount));
+        OnPropertyChanged(nameof(TotalLinesAdded));
+        OnPropertyChanged(nameof(TotalLinesDeleted));
         OnPropertyChanged(nameof(CanGoNext));
         NextCommand.NotifyCanExecuteChanged();
     }
@@ -373,6 +453,25 @@ public partial class WizardViewModel : ObservableObject
             file.IsSelected = false;
         }
         OnPropertyChanged(nameof(SelectedFileCount));
+        OnPropertyChanged(nameof(TotalLinesAdded));
+        OnPropertyChanged(nameof(TotalLinesDeleted));
+        OnPropertyChanged(nameof(CanGoNext));
+        NextCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Invert file selection.
+    /// </summary>
+    [RelayCommand]
+    private void InvertFileSelection()
+    {
+        foreach (var file in Files)
+        {
+            file.IsSelected = !file.IsSelected;
+        }
+        OnPropertyChanged(nameof(SelectedFileCount));
+        OnPropertyChanged(nameof(TotalLinesAdded));
+        OnPropertyChanged(nameof(TotalLinesDeleted));
         OnPropertyChanged(nameof(CanGoNext));
         NextCommand.NotifyCanExecuteChanged();
     }
