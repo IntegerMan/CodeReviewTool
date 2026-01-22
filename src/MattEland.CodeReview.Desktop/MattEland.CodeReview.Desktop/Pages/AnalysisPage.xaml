@@ -70,7 +70,7 @@
                         <Border Width="20" Height="20" CornerRadius="10" Background="{x:Bind helpers:AnalysisPage.GetStepBackground(Wizard.CurrentStep, 2), Mode=OneWay}">
                             <TextBlock Text="3" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="10" FontWeight="Bold"/>
                         </Border>
-                        <TextBlock Text="Rules" VerticalAlignment="Center" Style="{ThemeResource CaptionTextBlockStyle}"/>
+                        <TextBlock Text="Reviewers" VerticalAlignment="Center" Style="{ThemeResource CaptionTextBlockStyle}"/>
                     </StackPanel>
                     <!-- Step 4 -->
                     <StackPanel Orientation="Horizontal" Spacing="6" Opacity="{x:Bind helpers:AnalysisPage.GetStepOpacity(Wizard.CurrentStep, 3), Mode=OneWay}">
@@ -236,7 +236,7 @@
                 </Border>
             </Grid>
 
-            <!-- Step 3: Rule Selection -->
+            <!-- Step 3: Profile Selection -->
             <Grid Visibility="{x:Bind helpers:AnalysisPage.VisibleIfStep(Wizard.CurrentStep, 2), Mode=OneWay}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -249,17 +249,17 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Spacing="4">
-                        <TextBlock Text="Select Rules to Apply" Style="{ThemeResource SubtitleTextBlockStyle}"/>
+                        <TextBlock Text="Select Reviewers" Style="{ThemeResource SubtitleTextBlockStyle}"/>
                         <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
-                            <Run Text="{x:Bind Wizard.SelectedRuleCount, Mode=OneWay}"/>
+                            <Run Text="{x:Bind Wizard.SelectedProfileCount, Mode=OneWay}"/>
                             <Run Text="of"/>
-                            <Run Text="{x:Bind Wizard.Rules.Count, Mode=OneWay}"/>
-                            <Run Text="available rules selected"/>
+                            <Run Text="{x:Bind Wizard.Profiles.Count, Mode=OneWay}"/>
+                            <Run Text="available reviewers selected"/>
                         </TextBlock>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                        <Button Content="Select All" Command="{x:Bind Wizard.SelectAllRulesCommand}"/>
-                        <Button Content="Deselect All" Command="{x:Bind Wizard.DeselectAllRulesCommand}"/>
+                        <Button Content="Select All" Command="{x:Bind Wizard.SelectAllProfilesCommand}"/>
+                        <Button Content="Deselect All" Command="{x:Bind Wizard.DeselectAllProfilesCommand}"/>
                     </StackPanel>
                 </Grid>
 
@@ -267,31 +267,23 @@
                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1" CornerRadius="8">
-                    <ListView ItemsSource="{x:Bind Wizard.Rules, Mode=OneWay}" SelectionMode="None">
+                    <ListView ItemsSource="{x:Bind Wizard.Profiles, Mode=OneWay}" SelectionMode="None">
                         <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="vm:SelectableRuleViewModel">
+                            <DataTemplate x:DataType="vm:SelectableProfileViewModel">
                                 <Grid Padding="12,8" ColumnSpacing="16">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <CheckBox IsChecked="{x:Bind IsSelected, Mode=TwoWay}" VerticalAlignment="Center"/>
                                     <Border Grid.Column="1" Width="4" Height="32" CornerRadius="2" VerticalAlignment="Center"
                                             Background="{ThemeResource SystemAccentColor}"/>
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock Text="{x:Bind Name}" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
-                                            <Border Background="{ThemeResource ControlFillColorSecondaryBrush}" CornerRadius="4" Padding="6,2">
-                                                <TextBlock Text="{x:Bind Language}" Style="{ThemeResource CaptionTextBlockStyle}" FontSize="10"/>
-                                            </Border>
-                                        </StackPanel>
+                                        <TextBlock Text="{x:Bind Name}" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
                                         <TextBlock Text="{x:Bind Description}" Style="{ThemeResource CaptionTextBlockStyle}" 
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" MaxLines="1" TextTrimming="CharacterEllipsis"/>
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" MaxLines="2" TextTrimming="CharacterEllipsis"/>
                                     </StackPanel>
-                                    <TextBlock Grid.Column="3" Text="{x:Bind SeverityDisplay}" VerticalAlignment="Center" 
-                                               Style="{ThemeResource CaptionTextBlockStyle}" Opacity="0.7"/>
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -335,40 +327,67 @@
                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                             CornerRadius="6" Padding="16,12" Margin="0,12,0,0"
                             Visibility="{x:Bind ViewModel.IsAnalyzing, Mode=OneWay}">
-                        <Grid ColumnSpacing="16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="12">
+                            <!-- Batch Info Row -->
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <Border Background="{ThemeResource SystemFillColorNeutralBackgroundBrush}"
+                                        CornerRadius="4" Padding="10,4">
+                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}">
+                                        <Run Text="📦 Batch"/>
+                                        <Run Text="{x:Bind ViewModel.CurrentBatchIndex, Mode=OneWay}" FontWeight="Bold"/>
+                                        <Run Text="of"/>
+                                        <Run Text="{x:Bind ViewModel.TotalBatches, Mode=OneWay}" FontWeight="Bold"/>
+                                    </TextBlock>
+                                </Border>
+                                
+                                <TextBlock Grid.Column="1" 
+                                           Text="{x:Bind ViewModel.CurrentBatchGroupingReason, Mode=OneWay}"
+                                           Style="{ThemeResource BodyTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                                
+                                <Button Grid.Column="2" Content="Cancel" 
+                                        Command="{x:Bind ViewModel.CancelAnalysisCommand}"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
                             
-                            <muxc:ProgressRing IsActive="True" Width="24" Height="24" VerticalAlignment="Center"/>
-                            
-                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{x:Bind ViewModel.CurrentFileName, Mode=OneWay}" 
-                                               Style="{ThemeResource BodyTextBlockStyle}" 
-                                               TextTrimming="CharacterEllipsis"/>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                                        <TextBlock Text="{x:Bind ViewModel.CompletedWorkItems, Mode=OneWay}" FontWeight="Bold"/>
-                                        <TextBlock Text="of" Opacity="0.7"/>
-                                        <TextBlock Text="{x:Bind ViewModel.TotalWorkItems, Mode=OneWay}" FontWeight="Bold"/>
-                                    </StackPanel>
-                                </Grid>
-                                <muxc:ProgressBar Value="{x:Bind ViewModel.ProgressValue, Mode=OneWay}" 
-                                                   Maximum="{x:Bind ViewModel.ProgressMaximum, Mode=OneWay}"
-                                                   IsIndeterminate="False"/>
-                            </StackPanel>
-                            
-                            <Button Grid.Column="3" Content="Cancel" 
-                                    Command="{x:Bind ViewModel.CancelAnalysisCommand}"
-                                    VerticalAlignment="Center"/>
-                        </Grid>
+                            <!-- Progress Row -->
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <muxc:ProgressRing IsActive="True" Width="20" Height="20" VerticalAlignment="Center"/>
+                                
+                                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{x:Bind ViewModel.CurrentFileName, Mode=OneWay}" 
+                                                   Style="{ThemeResource CaptionTextBlockStyle}" 
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                            <TextBlock Text="{x:Bind ViewModel.CompletedWorkItems, Mode=OneWay}" FontWeight="Bold" Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                            <TextBlock Text="of" Opacity="0.7" Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                            <TextBlock Text="{x:Bind ViewModel.TotalWorkItems, Mode=OneWay}" FontWeight="Bold" Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <muxc:ProgressBar Value="{x:Bind ViewModel.ProgressValue, Mode=OneWay}" 
+                                                       Maximum="{x:Bind ViewModel.ProgressMaximum, Mode=OneWay}"
+                                                       IsIndeterminate="False"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
                     </Border>
                 </Grid>
 
@@ -399,25 +418,28 @@
                                 <muxc:TreeView.ItemTemplate>
                                     <DataTemplate x:DataType="vm:FileTreeNode">
                                         <muxc:TreeViewItem ItemsSource="{x:Bind Children}" IsExpanded="True">
-                                            <Grid ColumnSpacing="6">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                 <FontIcon Grid.Column="0" Glyph="{x:Bind helpers:AnalysisPage.GetNodeIcon(IsFile)}" FontSize="12" Opacity="0.7"/>
-                                                <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{ThemeResource CaptionTextBlockStyle}"/>
-                                                <Border Grid.Column="2" Background="#442726" CornerRadius="8" Padding="5,1"
-                                                        Visibility="{x:Bind helpers:AnalysisPage.VisibleIfPositive(IssueCount), Mode=OneWay}">
-                                                    <TextBlock Text="{x:Bind IssueCount, Mode=OneWay}" FontSize="10" Foreground="#FF6B6B"/>
-                                                </Border>
-                                                <FontIcon Grid.Column="3" Glyph="{x:Bind helpers:AnalysisPage.GetStatusIcon(Status), Mode=OneWay}" FontSize="12">
-                                                    <FontIcon.Foreground>
-                                                        <SolidColorBrush Color="{x:Bind helpers:AnalysisPage.GetStatusColor(Status), Mode=OneWay}"/>
-                                                    </FontIcon.Foreground>
-                                                </FontIcon>
-                                            </Grid>
+                                            <Border Background="{x:Bind helpers:AnalysisPage.GetBatchHighlightBrush(IsInCurrentBatch), Mode=OneWay}"
+                                                    CornerRadius="4" Padding="4,2" Margin="-4,-2">
+                                                <Grid ColumnSpacing="6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                     <FontIcon Grid.Column="0" Glyph="{x:Bind helpers:AnalysisPage.GetNodeIcon(IsFile)}" FontSize="12" Opacity="0.7"/>
+                                                    <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                                    <Border Grid.Column="2" Background="#442726" CornerRadius="8" Padding="5,1"
+                                                            Visibility="{x:Bind helpers:AnalysisPage.VisibleIfPositive(IssueCount), Mode=OneWay}">
+                                                        <TextBlock Text="{x:Bind IssueCount, Mode=OneWay}" FontSize="10" Foreground="#FF6B6B"/>
+                                                    </Border>
+                                                    <FontIcon Grid.Column="3" Glyph="{x:Bind helpers:AnalysisPage.GetStatusIcon(Status), Mode=OneWay}" FontSize="12">
+                                                        <FontIcon.Foreground>
+                                                            <SolidColorBrush Color="{x:Bind helpers:AnalysisPage.GetStatusColor(Status), Mode=OneWay}"/>
+                                                        </FontIcon.Foreground>
+                                                    </FontIcon>
+                                                </Grid>
+                                            </Border>
                                         </muxc:TreeViewItem>
                                     </DataTemplate>
                                 </muxc:TreeView.ItemTemplate>
@@ -468,14 +490,31 @@
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <Button Content="All" Command="{x:Bind ViewModel.ClearSeverityFilterCommand}"/>
                                             <Button Command="{x:Bind ViewModel.SetSeverityFilterCommand}" CommandParameter="{x:Bind models:Severity.Critical}">
-                                                <Ellipse Width="8" Height="8" Fill="#FF6B6B"/>
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Ellipse Width="8" Height="8" Fill="#FF6B6B" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Critical" VerticalAlignment="Center"/>
+                                                </StackPanel>
                                             </Button>
                                             <Button Command="{x:Bind ViewModel.SetSeverityFilterCommand}" CommandParameter="{x:Bind models:Severity.Error}">
-                                                <Ellipse Width="8" Height="8" Fill="#FFB366"/>
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Ellipse Width="8" Height="8" Fill="#FFB366" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Error" VerticalAlignment="Center"/>
+                                                </StackPanel>
                                             </Button>
                                             <Button Command="{x:Bind ViewModel.SetSeverityFilterCommand}" CommandParameter="{x:Bind models:Severity.Warning}">
-                                                <Ellipse Width="8" Height="8" Fill="#6BCB77"/>
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Ellipse Width="8" Height="8" Fill="#6BCB77" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Warning" VerticalAlignment="Center"/>
+                                                </StackPanel>
                                             </Button>
+                                            
+                                            <!-- Separator -->
+                                            <Border Width="1" Height="20" Background="{ThemeResource CardStrokeColorDefaultBrush}" Margin="8,0"/>
+                                            
+                                            <!-- Grouping Mode -->
+                                            <TextBlock Text="Group:" VerticalAlignment="Center" Style="{ThemeResource CaptionTextBlockStyle}"/>
+                                            <Button Content="📁 File" Command="{x:Bind ViewModel.GroupByFileCommand}" ToolTipService.ToolTip="Group by file"/>
+                                            <Button Content="⚠️ Severity" Command="{x:Bind ViewModel.GroupBySeverityCommand}" ToolTipService.ToolTip="Group by severity"/>
                                         </StackPanel>
                                     </StackPanel>
 

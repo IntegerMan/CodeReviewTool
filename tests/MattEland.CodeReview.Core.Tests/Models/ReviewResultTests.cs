@@ -9,10 +9,10 @@ public class ReviewResultTests
     {
         // Arrange
         var result = CreateResult(
-            new Issue { Id = "1", RuleId = "r1", FilePath = "a.cs", Severity = Severity.Critical, Message = "M" },
-            new Issue { Id = "2", RuleId = "r1", FilePath = "a.cs", Severity = Severity.Critical, Message = "M" },
-            new Issue { Id = "3", RuleId = "r2", FilePath = "b.cs", Severity = Severity.Warning, Message = "M" },
-            new Issue { Id = "4", RuleId = "r3", FilePath = "c.cs", Severity = Severity.Info, Message = "M" }
+            new Issue { Id = "1", ProfileId = "p1", FilePath = "a.cs", Severity = Severity.Critical, Message = "M" },
+            new Issue { Id = "2", ProfileId = "p1", FilePath = "a.cs", Severity = Severity.Critical, Message = "M" },
+            new Issue { Id = "3", ProfileId = "p2", FilePath = "b.cs", Severity = Severity.Warning, Message = "M" },
+            new Issue { Id = "4", ProfileId = "p3", FilePath = "c.cs", Severity = Severity.Info, Message = "M" }
         );
 
         // Act
@@ -29,9 +29,9 @@ public class ReviewResultTests
     public void CriticalCount_ReturnsCorrectCount()
     {
         var result = CreateResult(
-            new Issue { Id = "1", RuleId = "r1", FilePath = "a.cs", Severity = Severity.Critical, Message = "M" },
-            new Issue { Id = "2", RuleId = "r1", FilePath = "a.cs", Severity = Severity.Critical, Message = "M" },
-            new Issue { Id = "3", RuleId = "r2", FilePath = "b.cs", Severity = Severity.Warning, Message = "M" }
+            new Issue { Id = "1", ProfileId = "p1", FilePath = "a.cs", Severity = Severity.Critical, Message = "M" },
+            new Issue { Id = "2", ProfileId = "p1", FilePath = "a.cs", Severity = Severity.Critical, Message = "M" },
+            new Issue { Id = "3", ProfileId = "p2", FilePath = "b.cs", Severity = Severity.Warning, Message = "M" }
         );
 
         Assert.Equal(2, result.CriticalCount);
@@ -41,9 +41,9 @@ public class ReviewResultTests
     public void GetIssuesForFile_FiltersCorrectly()
     {
         var result = CreateResult(
-            new Issue { Id = "1", RuleId = "r1", FilePath = "a.cs", Severity = Severity.Warning, Message = "M" },
-            new Issue { Id = "2", RuleId = "r1", FilePath = "a.cs", Severity = Severity.Warning, Message = "M" },
-            new Issue { Id = "3", RuleId = "r2", FilePath = "b.cs", Severity = Severity.Warning, Message = "M" }
+            new Issue { Id = "1", ProfileId = "p1", FilePath = "a.cs", Severity = Severity.Warning, Message = "M" },
+            new Issue { Id = "2", ProfileId = "p1", FilePath = "a.cs", Severity = Severity.Warning, Message = "M" },
+            new Issue { Id = "3", ProfileId = "p2", FilePath = "b.cs", Severity = Severity.Warning, Message = "M" }
         );
 
         var aIssues = result.GetIssuesForFile("a.cs").ToList();
@@ -53,18 +53,18 @@ public class ReviewResultTests
     }
 
     [Fact]
-    public void GetIssuesByRule_FiltersCorrectly()
+    public void GetIssuesByProfile_FiltersCorrectly()
     {
         var result = CreateResult(
-            new Issue { Id = "1", RuleId = "rule1", FilePath = "a.cs", Severity = Severity.Warning, Message = "M" },
-            new Issue { Id = "2", RuleId = "rule1", FilePath = "b.cs", Severity = Severity.Warning, Message = "M" },
-            new Issue { Id = "3", RuleId = "rule2", FilePath = "c.cs", Severity = Severity.Warning, Message = "M" }
+            new Issue { Id = "1", ProfileId = "profile1", FilePath = "a.cs", Severity = Severity.Warning, Message = "M" },
+            new Issue { Id = "2", ProfileId = "profile1", FilePath = "b.cs", Severity = Severity.Warning, Message = "M" },
+            new Issue { Id = "3", ProfileId = "profile2", FilePath = "c.cs", Severity = Severity.Warning, Message = "M" }
         );
 
-        var rule1Issues = result.GetIssuesByRule("rule1").ToList();
+        var profile1Issues = result.GetIssuesByProfile("profile1").ToList();
 
-        Assert.Equal(2, rule1Issues.Count);
-        Assert.All(rule1Issues, i => Assert.Equal("rule1", i.RuleId));
+        Assert.Equal(2, profile1Issues.Count);
+        Assert.All(profile1Issues, i => Assert.Equal("profile1", i.ProfileId));
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public class ReviewResultTests
             CompletedAt = end,
             Diff = CreateEmptyDiff(),
             Issues = [],
-            AppliedRules = []
+            AppliedProfiles = []
         };
 
         Assert.NotNull(result.Duration);
@@ -95,7 +95,7 @@ public class ReviewResultTests
             StartedAt = DateTimeOffset.UtcNow,
             Diff = CreateEmptyDiff(),
             Issues = issues,
-            AppliedRules = []
+            AppliedProfiles = []
         };
     }
 

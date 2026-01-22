@@ -214,4 +214,46 @@ public class DiffLineMapperTests
         // Assert
         Assert.Empty(mapper.GetAddedLines());
     }
+
+    [Fact]
+    public void ExtractSnippetFromDiff_ReturnsSnippet()
+    {
+        // Arrange
+        const string diff = """
+            @@ -1,5 +1,6 @@
+             line 1
+             line 2
+            +new line
+             line 3
+             line 4
+            """;
+        
+        // Act - center on line 3 (the '+new line')
+        var snippet = DiffLineMapper.ExtractSnippetFromDiff(diff, 3, contextLines: 1);
+
+        // Assert
+        Assert.NotNull(snippet);
+        // Should show line 2 (context), line 3 (target), line 4 (context)
+        Assert.Contains("2:     line 2", snippet);
+        Assert.Contains("3: → + new line", snippet);
+        Assert.Contains("4:     line 3", snippet);
+    }
+
+    [Fact]
+    public void ExtractSnippetFromDiff_HandlesMissingLines()
+    {
+        // Arrange - diff only has a small hunk far down the file
+        const string diff = """
+            @@ -100,2 +100,3 @@
+             context
+            +added
+             context
+            """;
+
+        // Act - request snippet for line 5 (not in diff)
+        var snippet = DiffLineMapper.ExtractSnippetFromDiff(diff, 5, contextLines: 2);
+
+        // Assert
+        Assert.Null(snippet);
+    }
 }

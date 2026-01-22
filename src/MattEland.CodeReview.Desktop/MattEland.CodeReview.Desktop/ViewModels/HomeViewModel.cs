@@ -14,18 +14,18 @@ public partial class HomeViewModel : ObservableObject
 {
     private readonly MainViewModel _mainViewModel;
     private readonly IGitService _gitService;
-    private readonly IRuleProvider _ruleProvider;
+    private readonly IProfileProvider _profileProvider;
     private readonly IUserSettingsService _settingsService;
 
     public HomeViewModel(
         MainViewModel mainViewModel, 
         IGitService gitService, 
-        IRuleProvider ruleProvider,
+        IProfileProvider profileProvider,
         IUserSettingsService settingsService)
     {
         _mainViewModel = mainViewModel;
         _gitService = gitService;
-        _ruleProvider = ruleProvider;
+        _profileProvider = profileProvider;
         _settingsService = settingsService;
         LoadRecentRepositories();
     }
@@ -56,19 +56,14 @@ public partial class HomeViewModel : ObservableObject
     public string? CurrentBranch => _mainViewModel.CurrentBranch;
 
     /// <summary>
-    /// Total number of available rules.
+    /// Total number of available profiles.
     /// </summary>
-    public int TotalRules => _ruleProvider.GetAllRules().Count();
+    public int TotalProfiles => _profileProvider.GetAllProfiles().Count();
 
     /// <summary>
-    /// Number of enabled rules.
+    /// Number of enabled profiles.
     /// </summary>
-    public int EnabledRules => _ruleProvider.GetEnabledRules().Count();
-
-    /// <summary>
-    /// Number of supported languages.
-    /// </summary>
-    public int SupportedLanguages => _ruleProvider.GetLanguages().Count();
+    public int EnabledProfiles => _profileProvider.GetEnabledProfiles().Count();
 
     /// <summary>
     /// Opens a folder picker to select a repository.

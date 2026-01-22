@@ -46,16 +46,16 @@ public interface ICodeReviewService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Analyzes a pre-computed git diff with a specific set of rules.
+    /// Analyzes a pre-computed git diff with a specific set of profiles.
     /// </summary>
     /// <param name="diff">The diff to analyze.</param>
-    /// <param name="selectedRuleIds">The IDs of rules to apply. If null, all enabled rules are used.</param>
+    /// <param name="selectedProfileIds">The IDs of profiles to apply. If null, all enabled profiles are used.</param>
     /// <param name="progressReporter">Optional progress reporter for detailed updates.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The review result containing all detected issues.</returns>
     Task<ReviewResult> AnalyzeDiffAsync(
         GitDiff diff,
-        IEnumerable<string>? selectedRuleIds,
+        IEnumerable<string>? selectedProfileIds,
         IAnalysisProgressReporter? progressReporter = null,
         CancellationToken cancellationToken = default);
 }

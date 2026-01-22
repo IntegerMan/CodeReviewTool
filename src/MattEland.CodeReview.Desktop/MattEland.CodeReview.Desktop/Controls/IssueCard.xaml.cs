@@ -95,4 +95,10 @@ public sealed partial class IssueCard : UserControl
     /// </summary>
     public static string FormatConfidence(double? confidence) => 
         confidence.HasValue ? $"{confidence.Value:P0}" : string.Empty;
+
+    /// <summary>
+    /// Extracts the file name from a path.
+    /// </summary>
+    public static string GetFileName(string? path) => 
+        string.IsNullOrEmpty(path) ? "" : System.IO.Path.GetFileName(path);
 }

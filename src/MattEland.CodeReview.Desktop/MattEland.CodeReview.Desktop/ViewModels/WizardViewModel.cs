@@ -9,7 +9,7 @@ public enum WizardStep
 {
     Repository = 0,
     Files = 1,
-    Rules = 2,
+    Profiles = 2,
     Analysis = 3
 }
 
@@ -21,18 +21,18 @@ public partial class WizardViewModel : ObservableObject
 {
     private readonly MainViewModel _mainViewModel;
     private readonly IGitService _gitService;
-    private readonly IRuleProvider _ruleProvider;
+    private readonly IProfileProvider _profileProvider;
     private readonly ICodeReviewService _codeReviewService;
 
     public WizardViewModel(
         MainViewModel mainViewModel,
         IGitService gitService,
-        IRuleProvider ruleProvider,
+        IProfileProvider profileProvider,
         ICodeReviewService codeReviewService)
     {
         _mainViewModel = mainViewModel;
         _gitService = gitService;
-        _ruleProvider = ruleProvider;
+        _profileProvider = profileProvider;
         _codeReviewService = codeReviewService;
     }
 
@@ -46,7 +46,7 @@ public partial class WizardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CurrentStepIndex))]
     [NotifyPropertyChangedFor(nameof(IsOnRepositoryStep))]
     [NotifyPropertyChangedFor(nameof(IsOnFilesStep))]
-    [NotifyPropertyChangedFor(nameof(IsOnRulesStep))]
+    [NotifyPropertyChangedFor(nameof(IsOnProfilesStep))]
     [NotifyPropertyChangedFor(nameof(IsOnAnalysisStep))]
     [NotifyCanExecuteChangedFor(nameof(BackCommand))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand))]
@@ -110,9 +110,9 @@ public partial class WizardViewModel : ObservableObject
     public ObservableCollection<SelectableFileViewModel> Files { get; } = [];
 
     /// <summary>
-    /// Rules available for selection.
+    /// Profiles available for selection.
     /// </summary>
-    public ObservableCollection<SelectableRuleViewModel> Rules { get; } = [];
+    public ObservableCollection<SelectableProfileViewModel> Profiles { get; } = [];
 
     /// <summary>
     /// Hierarchical file nodes for the selection tree.
@@ -202,7 +202,7 @@ public partial class WizardViewModel : ObservableObject
     // Step visibility properties
     public bool IsOnRepositoryStep => CurrentStep == WizardStep.Repository;
     public bool IsOnFilesStep => CurrentStep == WizardStep.Files;
-    public bool IsOnRulesStep => CurrentStep == WizardStep.Rules;
+    public bool IsOnProfilesStep => CurrentStep == WizardStep.Profiles;
     public bool IsOnAnalysisStep => CurrentStep == WizardStep.Analysis;
 
     /// <summary>
@@ -217,7 +217,7 @@ public partial class WizardViewModel : ObservableObject
     {
         WizardStep.Repository => HasRepository && !IsFetchingChanges,
         WizardStep.Files => Files.Any(f => f.IsSelected) && !IsFetchingChanges,
-        WizardStep.Rules => Rules.Any(r => r.IsSelected) && !IsAnalyzing,
+        WizardStep.Profiles => Profiles.Any(p => p.IsSelected) && !IsAnalyzing,
         WizardStep.Analysis => false, // No next from analysis
         _ => false
     };
@@ -228,8 +228,8 @@ public partial class WizardViewModel : ObservableObject
     public string NextButtonText => CurrentStep switch
     {
         WizardStep.Repository => "Fetch Changes",
-        WizardStep.Files => "Select Rules",
-        WizardStep.Rules => "Run Analysis",
+        WizardStep.Files => "Select Reviewers",
+        WizardStep.Profiles => "Run Analysis",
         WizardStep.Analysis => "Done",
         _ => "Next"
     };
@@ -240,9 +240,9 @@ public partial class WizardViewModel : ObservableObject
     public int SelectedFileCount => Files.Count(f => f.IsSelected);
 
     /// <summary>
-    /// Number of selected rules.
+    /// Number of selected profiles.
     /// </summary>
-    public int SelectedRuleCount => Rules.Count(r => r.IsSelected);
+    public int SelectedProfileCount => Profiles.Count(p => p.IsSelected);
 
     /// <summary>
     /// Navigate back one step.
@@ -273,11 +273,11 @@ public partial class WizardViewModel : ObservableObject
                     break;
 
                 case WizardStep.Files:
-                    LoadRulesForSelectedFiles();
-                    CurrentStep = WizardStep.Rules;
+                    LoadProfilesForSelectedFiles();
+                    CurrentStep = WizardStep.Profiles;
                     break;
 
-                case WizardStep.Rules:
+                case WizardStep.Profiles:
                     CurrentStep = WizardStep.Analysis;
                     break;
             }
@@ -377,49 +377,39 @@ public partial class WizardViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Loads rules applicable to the selected files' languages.
+    /// Loads profiles for selection.
     /// </summary>
-    private void LoadRulesForSelectedFiles()
+    private void LoadProfilesForSelectedFiles()
     {
-        // Unsubscribe from existing rules
-        foreach (var rule in Rules)
+        // Unsubscribe from existing profiles
+        foreach (var profile in Profiles)
         {
-            rule.PropertyChanged -= OnRulePropertyChanged;
+            profile.PropertyChanged -= OnProfilePropertyChanged;
         }
         
-        Rules.Clear();
+        Profiles.Clear();
 
-        // Get unique languages from selected files
-        var languages = Files
-            .Where(f => f.IsSelected && !string.IsNullOrEmpty(f.Language))
-            .Select(f => f.Language!)
-            .Distinct()
-            .ToHashSet();
+        // Load all available profiles (profiles are language-agnostic)
+        var allProfiles = _profileProvider.GetAllProfiles()
+            .OrderBy(p => p.Name);
 
-        // Load rules for those languages
-        var allRules = _ruleProvider.GetAllRules()
-            .Where(r => languages.Contains(r.Language, StringComparer.OrdinalIgnoreCase))
-            .OrderBy(r => r.Language)
-            .ThenBy(r => r.Category)
-            .ThenBy(r => r.Name);
-
-        foreach (var rule in allRules)
+        foreach (var profile in allProfiles)
         {
-            var selectableRule = new SelectableRuleViewModel(rule);
-            selectableRule.PropertyChanged += OnRulePropertyChanged;
-            Rules.Add(selectableRule);
+            var selectableProfile = new SelectableProfileViewModel(profile);
+            selectableProfile.PropertyChanged += OnProfilePropertyChanged;
+            Profiles.Add(selectableProfile);
         }
 
-        OnPropertyChanged(nameof(SelectedRuleCount));
+        OnPropertyChanged(nameof(SelectedProfileCount));
         OnPropertyChanged(nameof(CanGoNext));
         NextCommand.NotifyCanExecuteChanged();
     }
 
-    private void OnRulePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnProfilePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(SelectableRuleViewModel.IsSelected))
+        if (e.PropertyName == nameof(SelectableProfileViewModel.IsSelected))
         {
-            OnPropertyChanged(nameof(SelectedRuleCount));
+            OnPropertyChanged(nameof(SelectedProfileCount));
             OnPropertyChanged(nameof(CanGoNext));
             NextCommand.NotifyCanExecuteChanged();
         }
@@ -477,31 +467,31 @@ public partial class WizardViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Select all rules.
+    /// Select all profiles.
     /// </summary>
     [RelayCommand]
-    private void SelectAllRules()
+    private void SelectAllProfiles()
     {
-        foreach (var rule in Rules)
+        foreach (var profile in Profiles)
         {
-            rule.IsSelected = true;
+            profile.IsSelected = true;
         }
-        OnPropertyChanged(nameof(SelectedRuleCount));
+        OnPropertyChanged(nameof(SelectedProfileCount));
         OnPropertyChanged(nameof(CanGoNext));
         NextCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>
-    /// Deselect all rules.
+    /// Deselect all profiles.
     /// </summary>
     [RelayCommand]
-    private void DeselectAllRules()
+    private void DeselectAllProfiles()
     {
-        foreach (var rule in Rules)
+        foreach (var profile in Profiles)
         {
-            rule.IsSelected = false;
+            profile.IsSelected = false;
         }
-        OnPropertyChanged(nameof(SelectedRuleCount));
+        OnPropertyChanged(nameof(SelectedProfileCount));
         OnPropertyChanged(nameof(CanGoNext));
         NextCommand.NotifyCanExecuteChanged();
     }
@@ -513,10 +503,10 @@ public partial class WizardViewModel : ObservableObject
         Files.Where(f => f.IsSelected).Select(f => f.FileChange);
 
     /// <summary>
-    /// Gets the selected rule IDs.
+    /// Gets the selected profile IDs.
     /// </summary>
-    public IEnumerable<string> GetSelectedRuleIds() =>
-        Rules.Where(r => r.IsSelected).Select(r => r.Id);
+    public IEnumerable<string> GetSelectedProfileIds() =>
+        Profiles.Where(p => p.IsSelected).Select(p => p.Id);
 
     /// <summary>
     /// Creates a filtered GitDiff containing only selected files.
@@ -556,7 +546,7 @@ public partial class WizardViewModel : ObservableObject
     {
         CurrentStep = WizardStep.Repository;
         Files.Clear();
-        Rules.Clear();
+        Profiles.Clear();
         Diff = null;
         ErrorMessage = null;
         IsAnalyzing = false;

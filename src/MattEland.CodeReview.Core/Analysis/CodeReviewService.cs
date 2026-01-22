@@ -2,8 +2,8 @@ using System.Text.Json;
 using MattEland.CodeReview.Core.Configuration;
 using MattEland.CodeReview.Core.Git;
 using MattEland.CodeReview.Core.Models;
+using MattEland.CodeReview.Core.Profiles;
 using MattEland.CodeReview.Core.Prompts;
-using MattEland.CodeReview.Core.Rules;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,28 +11,38 @@ using Microsoft.Extensions.Options;
 namespace MattEland.CodeReview.Core.Analysis;
 
 /// <summary>
-/// Implementation of <see cref="ICodeReviewService"/>.
+/// Implementation of <see cref="ICodeReviewService"/> using review profiles.
 /// </summary>
 public sealed class CodeReviewService : ICodeReviewService
 {
     private readonly IGitService _gitService;
-    private readonly IRuleProvider _ruleProvider;
-    private readonly IPromptLoader _promptLoader;
+    private readonly IProfileProvider _profileProvider;
+    private readonly IProfileLoader _profileLoader;
     private readonly ChatClientFactory _chatClientFactory;
     private readonly CodeReviewOptions _options;
     private readonly ILogger<CodeReviewService> _logger;
 
+    /// <summary>
+    /// Maximum number of files to include in a single batch for analysis.
+    /// </summary>
+    private const int MaxFilesPerBatch = 10;
+
+    /// <summary>
+    /// Maximum total diff size (in characters) per batch to avoid token limits.
+    /// </summary>
+    private const int MaxBatchDiffSize = 50000;
+
     public CodeReviewService(
         IGitService gitService,
-        IRuleProvider ruleProvider,
-        IPromptLoader promptLoader,
+        IProfileProvider profileProvider,
+        IProfileLoader profileLoader,
         ChatClientFactory chatClientFactory,
         IOptions<CodeReviewOptions> options,
         ILogger<CodeReviewService> logger)
     {
         _gitService = gitService;
-        _ruleProvider = ruleProvider;
-        _promptLoader = promptLoader;
+        _profileProvider = profileProvider;
+        _profileLoader = profileLoader;
         _chatClientFactory = chatClientFactory;
         _options = options.Value;
         _logger = logger;
@@ -65,83 +75,80 @@ public sealed class CodeReviewService : ICodeReviewService
         IAnalysisProgressReporter? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return AnalyzeDiffAsync(diff, selectedRuleIds: null, progressReporter, cancellationToken);
+        return AnalyzeDiffAsync(diff, selectedProfileIds: null, progressReporter, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task<ReviewResult> AnalyzeDiffAsync(
         GitDiff diff,
-        IEnumerable<string>? selectedRuleIds,
+        IEnumerable<string>? selectedProfileIds,
         IAnalysisProgressReporter? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
         var reviewId = Guid.NewGuid().ToString("N")[..8];
         var startedAt = DateTimeOffset.UtcNow;
         var allIssues = new List<Issue>();
-        var appliedRules = new List<Rule>();
+        var appliedProfiles = new List<ReviewProfile>();
         var errors = new List<string>();
-        var selectedRuleIdSet = selectedRuleIds?.ToHashSet();
+        var selectedProfileIdSet = selectedProfileIds?.ToHashSet();
 
-        _logger.LogInformation("Starting review {ReviewId} with {FileCount} files, {RuleFilter}",
+        _logger.LogInformation("Starting review {ReviewId} with {FileCount} files, {ProfileFilter}",
             reviewId, diff.Files.Count, 
-            selectedRuleIdSet != null ? $"{selectedRuleIdSet.Count} selected rules" : "all enabled rules");
+            selectedProfileIdSet != null ? $"{selectedProfileIdSet.Count} selected profiles" : "all enabled profiles");
 
         try
         {
-            // Group files by language
-            var filesByLanguage = diff.Files
-                .Where(f => !string.IsNullOrEmpty(f.Language))
-                .GroupBy(f => f.Language!)
-                .ToDictionary(g => g.Key, g => g.ToList());
+            // Get profiles to apply
+            var profiles = GetFilteredProfiles(selectedProfileIdSet).ToList();
+            appliedProfiles.AddRange(profiles);
 
-            // Calculate total work items for progress tracking
-            var totalWorkItems = filesByLanguage.Values
-                .Sum(files => files.Count * 
-                    GetFilteredRules(_ruleProvider.GetRulesByLanguage(files.First().Language!), selectedRuleIdSet).Count());
-            var currentWorkItem = 0;
-
-            foreach (var (language, files) in filesByLanguage)
+            if (profiles.Count == 0)
             {
-                var rules = GetFilteredRules(_ruleProvider.GetRulesByLanguage(language), selectedRuleIdSet)
-                    .ToList();
+                _logger.LogWarning("No profiles available for analysis");
+                return CreateResult(reviewId, startedAt, diff, [], appliedProfiles, true, "No profiles available");
+            }
 
-                _logger.LogDebug("Analyzing {FileCount} {Language} files with {RuleCount} rules",
-                    files.Count, language, rules.Count);
+            // Filter out deletions and irrelevant files (e.g., .gitignore, IDE configs)
+            var filesToAnalyze = diff.Files
+                .Where(f => f.ChangeType != FileChangeType.Deleted)
+                .Where(f => !IsIrrelevantFile(f.Path))
+                .ToList();
 
-                // Add rules to the list of applied rules
-                appliedRules.AddRange(rules);
+            // Create intelligent batches of files
+            var batches = CreateIntelligentBatches(filesToAnalyze);
+            _logger.LogInformation("Created {BatchCount} batches from {FileCount} files (filtered from {TotalFiles})", 
+                batches.Count, filesToAnalyze.Count, diff.Files.Count);
 
-                var fileIndex = 0;
-                foreach (var file in files)
+            var batchIndex = 0;
+            foreach (var (batch, groupingReason) in batches)
+            {
+                batchIndex++;
+                
+                // Report batch start with file list and grouping reason
+                progressReporter?.ReportBatchStart(batchIndex, batches.Count, batch, groupingReason);
+                
+                foreach (var profile in profiles)
                 {
-                    fileIndex++;
-                    var ruleIndex = 0;
+                    cancellationToken.ThrowIfCancellationRequested();
 
-                    foreach (var rule in rules)
+                    progressReporter?.ReportProgress(
+                        batchIndex, batches.Count,
+                        profiles.IndexOf(profile) + 1, profiles.Count,
+                        batch.Count == 1 ? batch[0].Path : $"Batch {batchIndex} ({batch.Count} files)", profile.Id);
+
+                    var (issues, error) = await AnalyzeBatchWithProfileAsync(
+                        batch, profile, progressReporter, cancellationToken);
+                    
+                    allIssues.AddRange(issues);
+
+                    if (!string.IsNullOrEmpty(error))
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        currentWorkItem++;
-                        ruleIndex++;
-                        
-                        // Report progress
-                        progressReporter?.ReportProgress(
-                            fileIndex, files.Count, 
-                            ruleIndex, rules.Count,
-                            file.Path, rule.Id);
-                        
-                        var (issues, error) = await AnalyzeFileWithRuleAsync(
-                            file, rule, progressReporter, cancellationToken);
-                        allIssues.AddRange(issues);
-                        
-                        if (!string.IsNullOrEmpty(error))
-                        {
-                            errors.Add(error);
-                        }
+                        errors.Add(error);
                     }
                 }
             }
 
-            // If we have model errors, mark as failed
+
             var modelErrors = errors.Where(e => e.Contains("model", StringComparison.OrdinalIgnoreCase) || 
                                                 e.Contains("not found", StringComparison.OrdinalIgnoreCase)).ToList();
             
@@ -151,84 +158,180 @@ public sealed class CodeReviewService : ICodeReviewService
                     ? $"{errors.Count} error(s) occurred during analysis. Check logs for details."
                     : null;
 
-            return new ReviewResult
-            {
-                Id = reviewId,
-                StartedAt = startedAt,
-                CompletedAt = DateTimeOffset.UtcNow,
-                Diff = diff,
-                Issues = allIssues,
-                AppliedRules = appliedRules,
-                IsSuccess = modelErrors.Count == 0,
-                ErrorMessage = errorMessage
-            };
+            return CreateResult(reviewId, startedAt, diff, allIssues, appliedProfiles, modelErrors.Count == 0, errorMessage);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Review {ReviewId} failed", reviewId);
-            
-            return new ReviewResult
-            {
-                Id = reviewId,
-                StartedAt = startedAt,
-                CompletedAt = DateTimeOffset.UtcNow,
-                Diff = diff,
-                Issues = allIssues,
-                AppliedRules = appliedRules,
-                IsSuccess = false,
-                ErrorMessage = ex.Message
-            };
+            return CreateResult(reviewId, startedAt, diff, allIssues, appliedProfiles, false, ex.Message);
         }
     }
 
     /// <summary>
-    /// Filters rules based on selected rule IDs, or returns all enabled rules if no selection.
+    /// Creates intelligent batches of files for analysis, grouping semantically related files together.
+    /// First groups by entity/feature name (e.g., UserController + UserService), then by directory.
     /// </summary>
-    private static IEnumerable<Rule> GetFilteredRules(IEnumerable<Rule> rules, HashSet<string>? selectedRuleIds)
+    internal List<(List<FileChange> Files, string Reason)> CreateIntelligentBatches(List<FileChange> files)
     {
-        var enabledRules = rules.Where(r => r.Enabled && !string.IsNullOrEmpty(r.PromptContent));
+        var batches = new List<(List<FileChange>, string)>();
+        var unassigned = new HashSet<FileChange>(files);
         
-        if (selectedRuleIds == null)
+        // Phase 1: Group by entity/feature relationships (e.g., UserController + UserService + UserRepository)
+        var byEntity = files
+            .Select(f => (File: f, Entity: ExtractEntityName(f.Path)))
+            .Where(x => x.Entity != null)
+            .GroupBy(x => x.Entity!, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1) // Only group if multiple related files
+            .OrderByDescending(g => g.Count());
+
+        foreach (var entityGroup in byEntity)
         {
-            return enabledRules;
+            var entityFiles = entityGroup.Select(x => x.File).ToList();
+            
+            // Only add if all files are still unassigned and we're under size limits
+            if (entityFiles.All(f => unassigned.Contains(f)) && entityFiles.Count <= MaxFilesPerBatch)
+            {
+                var totalSize = entityFiles.Sum(f => f.DiffContent?.Length ?? 0);
+                if (totalSize <= MaxBatchDiffSize)
+                {
+                    // Describe the layer types found for context
+                    var layers = entityFiles
+                        .Select(f => GetLayerType(f.Path))
+                        .Where(l => l != null)
+                        .Distinct()
+                        .OrderBy(l => l)
+                        .ToList();
+                    
+                    var reason = layers.Count > 0
+                        ? $"Related '{entityGroup.Key}' files ({string.Join(", ", layers)})"
+                        : $"Related '{entityGroup.Key}' files";
+                    
+                    batches.Add((entityFiles, reason));
+                    foreach (var f in entityFiles) unassigned.Remove(f);
+                }
+            }
         }
-        
-        return enabledRules.Where(r => selectedRuleIds.Contains(r.Id));
+
+        // Phase 2: Group remaining files by directory
+        var byDirectory = unassigned
+            .GroupBy(f => Path.GetDirectoryName(f.Path) ?? "")
+            .OrderBy(g => g.Key);
+
+        foreach (var dirGroup in byDirectory)
+        {
+            var dirBatch = new List<FileChange>();
+            var batchSize = 0;
+
+            foreach (var file in dirGroup)
+            {
+                var fileSize = file.DiffContent?.Length ?? 0;
+                
+                if (dirBatch.Count >= MaxFilesPerBatch || 
+                    (batchSize + fileSize > MaxBatchDiffSize && dirBatch.Count > 0))
+                {
+                    var reason = string.IsNullOrEmpty(dirGroup.Key) 
+                        ? "Files from root directory"
+                        : $"Files from {dirGroup.Key}";
+                    batches.Add((dirBatch, reason));
+                    dirBatch = [];
+                    batchSize = 0;
+                }
+                
+                dirBatch.Add(file);
+                batchSize += fileSize;
+            }
+
+            if (dirBatch.Count > 0)
+            {
+                var reason = string.IsNullOrEmpty(dirGroup.Key)
+                    ? "Files from root directory"
+                    : $"Files from {dirGroup.Key}";
+                batches.Add((dirBatch, reason));
+            }
+        }
+
+        return batches;
     }
 
-    private async Task<(IEnumerable<Issue> Issues, string? Error)> AnalyzeFileWithRuleAsync(
-        FileChange file,
-        Rule rule,
+    /// <summary>
+    /// Extracts an entity/feature name from a file path by stripping common suffixes.
+    /// For example, "UserController.cs" -> "User", "OrderService.cs" -> "Order".
+    /// </summary>
+    internal static string? ExtractEntityName(string filePath)
+    {
+        var fileName = Path.GetFileNameWithoutExtension(filePath);
+        
+        string[] suffixes = ["Controller", "Service", "Repository", "Handler", 
+                             "Manager", "Provider", "Factory", "Validator", 
+                             "Model", "Entity", "Dto", "ViewModel", "Command",
+                             "Query", "Endpoint", "Consumer", "Worker", "Job"];
+        
+        foreach (var suffix in suffixes)
+        {
+            if (fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) && fileName.Length > suffix.Length)
+                return fileName[..^suffix.Length];
+        }
+        
+        return null;
+    }
+
+    /// <summary>
+    /// Gets a human-readable layer type from a file path.
+    /// </summary>
+    internal static string? GetLayerType(string filePath)
+    {
+        var fileName = Path.GetFileName(filePath);
+        if (fileName.Contains("Controller", StringComparison.OrdinalIgnoreCase)) return "Controller";
+        if (fileName.Contains("Service", StringComparison.OrdinalIgnoreCase)) return "Service";
+        if (fileName.Contains("Repository", StringComparison.OrdinalIgnoreCase)) return "Repository";
+        if (fileName.Contains("Handler", StringComparison.OrdinalIgnoreCase)) return "Handler";
+        if (fileName.Contains("Model", StringComparison.OrdinalIgnoreCase)) return "Model";
+        if (fileName.Contains("ViewModel", StringComparison.OrdinalIgnoreCase)) return "ViewModel";
+        if (fileName.Contains("Endpoint", StringComparison.OrdinalIgnoreCase)) return "Endpoint";
+        if (fileName.Contains("Consumer", StringComparison.OrdinalIgnoreCase)) return "Consumer";
+        return null;
+    }
+
+
+    private IEnumerable<ReviewProfile> GetFilteredProfiles(HashSet<string>? selectedProfileIds)
+    {
+        var enabledProfiles = _profileProvider.GetEnabledProfiles()
+            .Where(p => !string.IsNullOrEmpty(p.PromptContent));
+        
+        if (selectedProfileIds == null)
+        {
+            return enabledProfiles;
+        }
+        
+        return enabledProfiles.Where(p => selectedProfileIds.Contains(p.Id));
+    }
+
+    private async Task<(IEnumerable<Issue> Issues, string? Error)> AnalyzeBatchWithProfileAsync(
+        List<FileChange> batch,
+        ReviewProfile profile,
         IAnalysisProgressReporter? progressReporter,
         CancellationToken cancellationToken)
     {
         try
         {
-            // Truncate diff if too large
-            var diffContent = file.DiffContent;
-            if (diffContent.Length > _options.Git.MaxDiffSizePerFile)
-            {
-                _logger.LogWarning("Truncating diff for {Path} from {Original} to {Max} characters",
-                    file.Path, diffContent.Length, _options.Git.MaxDiffSizePerFile);
-                diffContent = diffContent[.._options.Git.MaxDiffSizePerFile] + "\n... (truncated)";
-            }
+            // Build combined diff with file summaries for context
+            var combinedDiff = BuildBatchDiff(batch);
 
             var context = new PromptContext
             {
-                Diff = diffContent,
-                FilePath = file.Path,
-                Language = file.Language
+                Diff = combinedDiff,
+                FilePath = batch.Count == 1 ? batch[0].Path : $"{batch.Count} files",
+                Language = batch.FirstOrDefault()?.Language
             };
 
-            var renderedPrompt = _promptLoader.RenderPrompt(rule, context);
+            var renderedPrompt = _profileLoader.RenderPrompt(profile, context);
 
-            _logger.LogDebug("Analyzing {Path} with rule {RuleId}", file.Path, rule.Id);
+            _logger.LogDebug("Analyzing batch of {FileCount} files with profile {ProfileId}", batch.Count, profile.Id);
 
             // Report LLM request
             var requestPreview = TruncateForDisplay(renderedPrompt, 500);
-            progressReporter?.ReportLlmRequest(file.Path, rule.Id, requestPreview);
+            progressReporter?.ReportLlmRequest(context.FilePath ?? "batch", profile.Id, requestPreview);
 
-            // Get a fresh client with the latest configuration
             var chatClient = _chatClientFactory.CreateClient();
             var response = await chatClient.GetResponseAsync(
                 [
@@ -241,10 +344,10 @@ public sealed class CodeReviewService : ICodeReviewService
             
             // Report LLM response
             var responsePreview = TruncateForDisplay(responseText, 500);
-            progressReporter?.ReportLlmResponse(file.Path, rule.Id, responsePreview);
+            progressReporter?.ReportLlmResponse(context.FilePath ?? "batch", profile.Id, responsePreview);
             
-            var issues = ParseIssuesFromResponse(responseText, file, rule, progressReporter);
-            progressReporter?.ReportIssues(file.Path, rule.Id, issues);
+            var issues = ParseIssuesFromResponse(responseText, batch, profile, progressReporter);
+            progressReporter?.ReportIssues(context.FilePath ?? "batch", profile.Id, issues);
             
             return (issues, null);
         }
@@ -252,47 +355,73 @@ public sealed class CodeReviewService : ICodeReviewService
         {
             var errorMessage = ex.Message;
             
-            // Check for model-specific errors
             if (errorMessage.Contains("model", StringComparison.OrdinalIgnoreCase) && 
                 errorMessage.Contains("not found", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogError(ex, "Model error while analyzing {Path} with rule {RuleId}: {Error}", 
-                    file.Path, rule.Id, errorMessage);
+                _logger.LogError(ex, "Model error while analyzing batch with profile {ProfileId}: {Error}", 
+                    profile.Id, errorMessage);
                 return ([], errorMessage);
             }
             
-            _logger.LogWarning(ex, "Failed to analyze {Path} with rule {RuleId}", file.Path, rule.Id);
+            _logger.LogWarning(ex, "Failed to analyze batch with profile {ProfileId}", profile.Id);
             return ([], null);
         }
     }
 
+    /// <summary>
+    /// Builds a combined diff for a batch of files with summaries for context.
+    /// </summary>
+    private string BuildBatchDiff(List<FileChange> batch)
+    {
+        var builder = new System.Text.StringBuilder();
+
+        foreach (var file in batch)
+        {
+            builder.AppendLine($"=== File: {file.Path} ===");
+            builder.AppendLine($"Change Type: {file.ChangeType}, +{file.LinesAdded}/-{file.LinesDeleted} lines");
+            builder.AppendLine();
+            
+            var diffContent = file.DiffContent;
+            if (!string.IsNullOrEmpty(diffContent))
+            {
+                // Truncate very large diffs per file
+                if (diffContent.Length > _options.Git.MaxDiffSizePerFile)
+                {
+                    diffContent = diffContent[.._options.Git.MaxDiffSizePerFile] + "\n... (truncated)";
+                }
+                builder.AppendLine(diffContent);
+            }
+            builder.AppendLine();
+        }
+
+        return builder.ToString();
+    }
+
     private static string GetSystemPrompt() => """
-        You are an expert code reviewer analyzing git diffs for potential issues.
-        Your specialty is finding issues that static analysis tools miss: logic errors,
-        subtle security vulnerabilities, architectural mistakes, and semantic problems.
+        You are an expert code reviewer analyzing code changes holistically.
+        Your specialty is finding issues that static analysis tools miss: confusing code,
+        unclear logic, hidden complexity, and maintainability problems.
 
         CRITICAL GUIDELINES:
-        1. Only report issues you are CONFIDENT about (confidence >= 0.7)
+        1. Focus on code clarity and maintainability
         2. If unsure, return an empty array []
-        3. Consider context: code using configuration/DI patterns is NOT hardcoding secrets
-        4. Focus on NEW or CHANGED code (lines with + prefix in the diff)
-        5. Do NOT report style issues, that's what linters are for
+        3. Focus on NEW or CHANGED code (lines with + prefix in the diff)
+        4. Do NOT report style issues, that's what linters are for
         
         LINE NUMBER INSTRUCTIONS:
         The diff contains hunk headers like @@ -10,5 +12,7 @@ where +12 is the starting 
-        line number in the NEW file. 
-        - You MUST calculate the correct line number for every issue.
-        - Start counting from the 'new file' start line in the hunk header.
-        - Count every line starting with '+' or ' ' (space).
-        - Do NOT count lines starting with '-'.
+        line number in the NEW file.
+        - Calculate the correct line number for every issue.
         - Return the ACTUAL FILE line number.
+        - Include both startLine and endLine for the issue range.
         
         When you find issues, respond with a JSON array of objects with these fields:
-        - line: (number) MANDATORY. The calculated line number of the issue.
-        - message: (string) A concise, descriptive summary of the issue (e.g., "Potential N+1 query detected").
-        - suggestion: (string) A detailed explanation of the fix.
+        - file: (string) MANDATORY. The file path where the issue was found.
+        - startLine: (number) MANDATORY. The starting line number of the issue.
+        - endLine: (number) MANDATORY. The ending line number of the issue.
+        - comments: (string) A concise description of the issue.
+        - reasoning: (string) Detailed explanation of why this is problematic.
         - severity: (string) One of: info, warning, error, critical
-        - confidence: (number) Your confidence from 0.0 to 1.0
         
         If you find no issues, respond with an empty array: []
         
@@ -301,13 +430,12 @@ public sealed class CodeReviewService : ICodeReviewService
 
     private IEnumerable<Issue> ParseIssuesFromResponse(
         string response, 
-        FileChange file, 
-        Rule rule, 
+        List<FileChange> batch,
+        ReviewProfile profile, 
         IAnalysisProgressReporter? progressReporter)
     {
         try
         {
-            // Try to extract JSON from the response (handle markdown code blocks)
             var jsonContent = ExtractJson(response);
             
             if (string.IsNullOrWhiteSpace(jsonContent) || jsonContent == "[]")
@@ -323,23 +451,60 @@ public sealed class CodeReviewService : ICodeReviewService
             if (issueData == null)
                 return [];
 
-            // Filter out low-confidence issues (below 0.6 threshold)
-            const double minConfidence = 0.6;
-            var filteredIssues = issueData.Where(d => d.Confidence == null || d.Confidence >= minConfidence);
-
-            return filteredIssues.Select((data, index) => new Issue
+            return issueData.Select((data, index) => 
             {
-                Id = $"{rule.Id}-{file.Path.GetHashCode():X8}-{index}",
-                RuleId = rule.Id,
-                FilePath = file.Path,
-                StartLine = data.Line,
-                Severity = ParseSeverity(data.Severity) ?? rule.DefaultSeverity,
-                Message = data.Message ?? "Issue detected",
-                Suggestion = data.Suggestion,
-                Confidence = data.Confidence,
-                CodeSnippet = data.Line.HasValue 
-                    ? DiffLineMapper.ExtractCodeSnippet(file.NewContent, data.Line.Value, contextLines: 3) 
-                    : null
+                // Find the matching file from the batch with improved matching
+                var matchingFile = FindMatchingFile(batch, data.File);
+
+                var filePath = matchingFile?.Path ?? data.File ?? "unknown";
+
+                var startLine = data.StartLine ?? data.Line;
+                var endLine = data.EndLine ?? startLine;
+
+                // Extract code snippet with fallback to diff content
+                string? codeSnippet = null;
+                string? codeSnippetError = null;
+                
+                if (!startLine.HasValue)
+                {
+                    codeSnippetError = "No line number provided by reviewer";
+                }
+                else if (matchingFile == null)
+                {
+                    codeSnippetError = $"Could not match file path: {data.File}";
+                }
+                else
+                {
+                    // Try from full file content first
+                    codeSnippet = DiffLineMapper.ExtractCodeSnippet(matchingFile.NewContent, startLine.Value, contextLines: 2);
+                    
+                    // Fallback to extracting from diff content if file content unavailable
+                    if (codeSnippet == null && !string.IsNullOrEmpty(matchingFile.DiffContent))
+                    {
+                        codeSnippet = DiffLineMapper.ExtractSnippetFromDiff(matchingFile.DiffContent, startLine.Value, contextLines: 2);
+                    }
+
+                    if (codeSnippet == null)
+                    {
+                        codeSnippetError = string.IsNullOrEmpty(matchingFile.NewContent) 
+                            ? "File content not available; line not found in diff"
+                            : $"Line {startLine.Value} not found in file";
+                    }
+                }
+
+                return new Issue
+                {
+                    Id = $"{profile.Id}-{filePath.GetHashCode():X8}-{index}",
+                    ProfileId = profile.Id,
+                    FilePath = filePath,
+                    StartLine = startLine,
+                    EndLine = endLine,
+                    Severity = ParseSeverity(data.Severity) ?? Severity.Warning,
+                    Message = data.Comments ?? data.Message ?? "Issue detected",
+                    Reasoning = data.Reasoning,
+                    CodeSnippet = codeSnippet,
+                    CodeSnippetError = codeSnippetError
+                };
             });
         }
         catch (JsonException ex)
@@ -350,11 +515,74 @@ public sealed class CodeReviewService : ICodeReviewService
             _logger.LogWarning(ex, "Failed to parse LLM response as JSON: {Response}", 
                 response.Length > 200 ? response[..200] + "..." : response);
             
-            // Report JSON parsing error
-            progressReporter?.ReportJsonParsingError(file.Path, rule.Id, errorMessage, responsePreview);
+            progressReporter?.ReportJsonParsingError("batch", profile.Id, errorMessage, responsePreview);
             
             return [];
         }
+    }
+
+    /// <summary>
+    /// Finds a matching file from the batch with improved path matching.
+    /// </summary>
+    private static FileChange? FindMatchingFile(List<FileChange> batch, string? llmFilePath)
+    {
+        if (string.IsNullOrEmpty(llmFilePath))
+            return batch.Count == 1 ? batch[0] : null;
+
+        // Normalize the LLM path for comparison
+        var normalizedLlmPath = NormalizePath(llmFilePath);
+        var llmFileName = Path.GetFileName(normalizedLlmPath);
+
+        // Try exact match first (with normalization)
+        var exactMatch = batch.FirstOrDefault(f => 
+            NormalizePath(f.Path).Equals(normalizedLlmPath, StringComparison.OrdinalIgnoreCase));
+        if (exactMatch != null)
+            return exactMatch;
+
+        // Try ends-with match (for partial paths)
+        var endsWithMatch = batch.FirstOrDefault(f => 
+            NormalizePath(f.Path).EndsWith(normalizedLlmPath, StringComparison.OrdinalIgnoreCase) ||
+            normalizedLlmPath.EndsWith(NormalizePath(f.Path), StringComparison.OrdinalIgnoreCase));
+        if (endsWithMatch != null)
+            return endsWithMatch;
+
+        // Fallback to filename-only match
+        var fileNameMatch = batch.FirstOrDefault(f => 
+            Path.GetFileName(f.Path).Equals(llmFileName, StringComparison.OrdinalIgnoreCase));
+        if (fileNameMatch != null)
+            return fileNameMatch;
+
+        // If single file in batch, use it as default
+        return batch.Count == 1 ? batch[0] : null;
+    }
+
+    /// <summary>
+    /// Normalizes path separators for consistent comparison.
+    /// </summary>
+    private static string NormalizePath(string path) => 
+        path.Replace('\\', '/').TrimStart('/');
+
+
+    private static ReviewResult CreateResult(
+        string reviewId,
+        DateTimeOffset startedAt,
+        GitDiff diff,
+        List<Issue> issues,
+        List<ReviewProfile> profiles,
+        bool isSuccess,
+        string? errorMessage)
+    {
+        return new ReviewResult
+        {
+            Id = reviewId,
+            StartedAt = startedAt,
+            CompletedAt = DateTimeOffset.UtcNow,
+            Diff = diff,
+            Issues = issues,
+            AppliedProfiles = profiles,
+            IsSuccess = isSuccess,
+            ErrorMessage = errorMessage
+        };
     }
 
     private static string TruncateForDisplay(string text, int maxLength)
@@ -367,7 +595,6 @@ public sealed class CodeReviewService : ICodeReviewService
 
     private static string ExtractJson(string response)
     {
-        // Handle markdown code blocks
         var trimmed = response.Trim();
         
         if (trimmed.StartsWith("```json"))
@@ -389,7 +616,6 @@ public sealed class CodeReviewService : ICodeReviewService
             }
         }
 
-        // Try to find JSON array in the response
         var arrayStart = trimmed.IndexOf('[');
         var arrayEnd = trimmed.LastIndexOf(']');
         
@@ -399,6 +625,22 @@ public sealed class CodeReviewService : ICodeReviewService
         }
 
         return trimmed;
+    }
+
+    private static bool IsIrrelevantFile(string path)
+    {
+        var normalizedPath = path.Replace('\\', '/').ToLowerInvariant();
+        
+        // Common files/directories to ignore
+        return normalizedPath == ".gitignore" ||
+               normalizedPath.StartsWith(".vscode/") ||
+               normalizedPath.Contains("/.vscode/") ||
+               normalizedPath.StartsWith(".cursor/") ||
+               normalizedPath.Contains("/.cursor/") ||
+               normalizedPath == ".cursorrules" ||
+               normalizedPath == "package-lock.json" ||
+               normalizedPath == "yarn.lock" ||
+               normalizedPath == "pnpm-lock.yaml";
     }
 
     private static Severity? ParseSeverity(string? severity) => severity?.ToLowerInvariant() switch
@@ -412,10 +654,13 @@ public sealed class CodeReviewService : ICodeReviewService
 
     private sealed class LlmIssue
     {
+        public string? File { get; set; }
         public int? Line { get; set; }
+        public int? StartLine { get; set; }
+        public int? EndLine { get; set; }
+        public string? Comments { get; set; }
         public string? Message { get; set; }
-        public string? Suggestion { get; set; }
+        public string? Reasoning { get; set; }
         public string? Severity { get; set; }
-        public double? Confidence { get; set; }
     }
 }

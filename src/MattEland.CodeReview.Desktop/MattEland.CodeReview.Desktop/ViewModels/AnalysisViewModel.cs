@@ -11,19 +11,19 @@ public partial class AnalysisViewModel : ObservableObject
     private readonly MainViewModel _mainViewModel;
     private readonly ICodeReviewService _codeReviewService;
     private readonly IGitService _gitService;
-    private readonly IRuleProvider _ruleProvider;
+    private readonly IProfileProvider _profileProvider;
     private CancellationTokenSource? _analysisCts;
 
     public AnalysisViewModel(
         MainViewModel mainViewModel, 
         ICodeReviewService codeReviewService,
         IGitService gitService,
-        IRuleProvider ruleProvider)
+        IProfileProvider profileProvider)
     {
         _mainViewModel = mainViewModel;
         _codeReviewService = codeReviewService;
         _gitService = gitService;
-        _ruleProvider = ruleProvider;
+        _profileProvider = profileProvider;
     }
 
     /// <summary>
@@ -142,10 +142,10 @@ public partial class AnalysisViewModel : ObservableObject
     private int _filesInDiff;
 
     /// <summary>
-    /// Number of rules being applied.
+    /// Number of profiles being applied.
     /// </summary>
     [ObservableProperty]
-    private int _rulesApplied;
+    private int _profilesApplied;
 
     /// <summary>
     /// Whether to show detailed log.
@@ -172,10 +172,10 @@ public partial class AnalysisViewModel : ObservableObject
     private string _currentFileName = string.Empty;
 
     /// <summary>
-    /// ID of the rule currently being applied.
+    /// ID of the profile currently being applied.
     /// </summary>
     [ObservableProperty]
-    private string _currentRuleId = string.Empty;
+    private string _currentProfileId = string.Empty;
 
     /// <summary>
     /// Number of completed work items (rule applications).
@@ -190,6 +190,29 @@ public partial class AnalysisViewModel : ObservableObject
     private int _totalWorkItems;
 
     /// <summary>
+    /// Current batch index (1-based).
+    /// </summary>
+    [ObservableProperty]
+    private int _currentBatchIndex;
+
+    /// <summary>
+    /// Total number of batches.
+    /// </summary>
+    [ObservableProperty]
+    private int _totalBatches;
+
+    /// <summary>
+    /// Reason why the current batch files are grouped together.
+    /// </summary>
+    [ObservableProperty]
+    private string _currentBatchGroupingReason = string.Empty;
+
+    /// <summary>
+    /// Files in the current batch being analyzed.
+    /// </summary>
+    public ObservableCollection<string> CurrentBatchFiles { get; } = [];
+
+    /// <summary>
     /// Currently selected severity filter.
     /// </summary>
     [ObservableProperty]
@@ -200,6 +223,12 @@ public partial class AnalysisViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private string? _fileFilter;
+
+    /// <summary>
+    /// How issues are grouped in the results view.
+    /// </summary>
+    [ObservableProperty]
+    private IssueGroupingMode _groupingMode = IssueGroupingMode.ByFile;
 
     /// <summary>
     /// Filtered issues for display.
@@ -247,9 +276,9 @@ public partial class AnalysisViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Runs the code review analysis with an optional filtered diff and rule set.
+    /// Runs the code review analysis with an optional filtered diff and profile set.
     /// </summary>
-    public async Task RunAnalysisAsync(GitDiff? selectedDiff, IEnumerable<string>? ruleIds, CancellationToken cancellationToken)
+    public async Task RunAnalysisAsync(GitDiff? selectedDiff, IEnumerable<string>? profileIds, CancellationToken cancellationToken)
     {
         if (!HasRepository || RepositoryPath == null) return;
 
@@ -264,7 +293,7 @@ public partial class AnalysisViewModel : ObservableObject
             AnalysisLog.Clear();
             GroupedIssues.Clear();
             FilesInDiff = 0;
-            RulesApplied = 0;
+            ProfilesApplied = 0;
 
             AddLog("Starting analysis...", AnalysisLogLevel.Info);
             AddLog($"Repository: {RepositoryPath}", AnalysisLogLevel.Info);
@@ -300,7 +329,7 @@ public partial class AnalysisViewModel : ObservableObject
                     CompletedAt = DateTimeOffset.UtcNow,
                     Diff = diff,
                     Issues = [],
-                    AppliedRules = [],
+                    AppliedProfiles = [],
                     IsSuccess = true
                 };
                 return;
@@ -312,38 +341,28 @@ public partial class AnalysisViewModel : ObservableObject
                 AddLog($"  - {file.Path} ({file.ChangeType}, +{file.LinesAdded}/-{file.LinesDeleted})", AnalysisLogLevel.Info);
             }
 
-            // Check rules - if IDs were provided, we filter here just for the log report
-            var allRules = ruleIds != null 
-                ? ruleIds.Select(id => _ruleProvider.GetRule(id)).Where(r => r != null).Cast<Rule>().ToList()
-                : _ruleProvider.GetEnabledRules().ToList();
+            // Check profiles
+            var allProfiles = profileIds != null 
+                ? profileIds.Select(id => _profileProvider.GetProfile(id)).Where(p => p != null).Cast<ReviewProfile>().ToList()
+                : _profileProvider.GetEnabledProfiles().ToList();
 
-            RulesApplied = allRules.Count;
+            ProfilesApplied = allProfiles.Count;
             
-            if (allRules.Count == 0)
+            if (allProfiles.Count == 0)
             {
-                AddLog("No rules selected for analysis!", AnalysisLogLevel.Warning);
-                AddLog("Please select at least one rule", AnalysisLogLevel.Info);
+                AddLog("No profiles selected for analysis!", AnalysisLogLevel.Warning);
+                AddLog("Please select at least one reviewer profile", AnalysisLogLevel.Info);
             }
             else
             {
-                AddLog($"Applying {allRules.Count} rule(s)...", AnalysisLogLevel.Info);
-                var rulesWithContent = allRules.Where(r => !string.IsNullOrEmpty(r.PromptContent)).ToList();
-                if (rulesWithContent.Count < allRules.Count)
-                {
-                    AddLog($"Warning: {allRules.Count - rulesWithContent.Count} rule(s) have no prompt content", AnalysisLogLevel.Warning);
-                }
+                AddLog($"Using {allProfiles.Count} reviewer profile(s)...", AnalysisLogLevel.Info);
             }
 
             ProgressMessage = "Running LLM analysis...";
             AddLog("Sending to LLM for analysis...", AnalysisLogLevel.Info);
 
             // Calculate total work items for progress tracking
-            var totalWorkItems = diff.Files
-                .Where(f => !string.IsNullOrEmpty(f.Language))
-                .GroupBy(f => f.Language!)
-                .Sum(g => g.Count() * (ruleIds != null 
-                    ? ruleIds.Count(id => _ruleProvider.GetRule(id)?.Language.Equals(g.Key, StringComparison.OrdinalIgnoreCase) == true)
-                    : _ruleProvider.GetRulesByLanguage(g.Key).Count(r => r.Enabled && !string.IsNullOrEmpty(r.PromptContent))));
+            var totalWorkItems = allProfiles.Count > 0 ? diff.Files.Count : 0;
 
             // Initialize progress tracking
             ProgressValue = 0;
@@ -351,7 +370,7 @@ public partial class AnalysisViewModel : ObservableObject
             TotalWorkItems = totalWorkItems;
             CompletedWorkItems = 0;
             CurrentFileName = string.Empty;
-            CurrentRuleId = string.Empty;
+            CurrentProfileId = string.Empty;
             
             // Initialize empty result if needed so we can start adding issues
             CurrentResult = new ReviewResult
@@ -361,7 +380,7 @@ public partial class AnalysisViewModel : ObservableObject
                 CompletedAt = DateTimeOffset.UtcNow,
                 Diff = diff,
                 Issues = new List<Issue>(),
-                AppliedRules = new List<Rule>(),
+                AppliedProfiles = new List<ReviewProfile>(),
                 IsSuccess = true
             };
             
@@ -372,7 +391,7 @@ public partial class AnalysisViewModel : ObservableObject
             progressReporter.SetTotalWorkItems(totalWorkItems);
             progressReporter.SetFileTree(FileTreeNodes);
 
-            var result = await _codeReviewService.AnalyzeDiffAsync(diff, ruleIds, progressReporter, token);
+            var result = await _codeReviewService.AnalyzeDiffAsync(diff, profileIds, progressReporter, token);
 
             CurrentResult = result;
             UpdateGroupedIssues();
@@ -444,7 +463,7 @@ public partial class AnalysisViewModel : ObservableObject
             Message = message,
             Level = level,
             FilePath = filePath,
-            RuleId = ruleId,
+            ProfileId = ruleId,
             LlmPrompt = llmPrompt,
             LlmResponse = llmResponse
         });
@@ -458,6 +477,7 @@ public partial class AnalysisViewModel : ObservableObject
     {
         SeverityFilter = null;
         OnPropertyChanged(nameof(FilteredIssues));
+        UpdateGroupedIssues();
     }
 
     /// <summary>
@@ -468,6 +488,7 @@ public partial class AnalysisViewModel : ObservableObject
     {
         SeverityFilter = severity;
         OnPropertyChanged(nameof(FilteredIssues));
+        UpdateGroupedIssues();
     }
 
     /// <summary>
@@ -478,6 +499,27 @@ public partial class AnalysisViewModel : ObservableObject
     {
         FileFilter = null;
         OnPropertyChanged(nameof(FilteredIssues));
+        UpdateGroupedIssues();
+    }
+
+    /// <summary>
+    /// Sets grouping to by file.
+    /// </summary>
+    [RelayCommand]
+    private void GroupByFile()
+    {
+        GroupingMode = IssueGroupingMode.ByFile;
+        UpdateGroupedIssues();
+    }
+
+    /// <summary>
+    /// Sets grouping to by severity.
+    /// </summary>
+    [RelayCommand]
+    private void GroupBySeverity()
+    {
+        GroupingMode = IssueGroupingMode.BySeverity;
+        UpdateGroupedIssues();
     }
 
     /// <summary>
@@ -496,29 +538,74 @@ public partial class AnalysisViewModel : ObservableObject
         
         if (CurrentResult == null) return;
 
-        var groups = CurrentResult.Issues
-            .GroupBy(i => i.FilePath)
-            .OrderByDescending(g => g.Max(i => (int)i.Severity))
-            .ThenBy(g => g.Key);
-
-        foreach (var group in groups)
+        // Apply filters
+        var issues = CurrentResult.Issues.AsEnumerable();
+        
+        if (SeverityFilter.HasValue)
         {
-            var issues = group.OrderByDescending(i => i.Severity).ThenBy(i => i.StartLine).ToList();
-            GroupedIssues.Add(new FileIssueGroup
-            {
-                FilePath = group.Key,
-                FileName = Path.GetFileName(group.Key),
-                Issues = issues
-            });
+            issues = issues.Where(i => i.Severity == SeverityFilter.Value);
+        }
+        
+        if (!string.IsNullOrEmpty(FileFilter))
+        {
+            issues = issues.Where(i => i.FilePath.Contains(FileFilter, StringComparison.OrdinalIgnoreCase));
+        }
 
-            // Update the file tree node with the issue count
-            var node = FindFileNode(group.Key);
-            if (node != null)
+        var issueList = issues.ToList();
+
+        if (GroupingMode == IssueGroupingMode.BySeverity)
+        {
+            // Group by severity
+            var groups = issueList
+                .GroupBy(i => i.Severity)
+                .OrderByDescending(g => (int)g.Key);
+
+            foreach (var group in groups)
             {
-                node.IssueCount = issues.Count;
+                var groupIssues = group.OrderBy(i => i.FilePath).ThenBy(i => i.StartLine).ToList();
+                GroupedIssues.Add(new FileIssueGroup
+                {
+                    FilePath = group.Key.ToString(),
+                    FileName = GetSeverityLabel(group.Key),
+                    Issues = groupIssues
+                });
+            }
+        }
+        else
+        {
+            // Group by file (default)
+            var groups = issueList
+                .GroupBy(i => i.FilePath)
+                .OrderByDescending(g => g.Max(i => (int)i.Severity))
+                .ThenBy(g => g.Key);
+
+            foreach (var group in groups)
+            {
+                var groupIssues = group.OrderByDescending(i => i.Severity).ThenBy(i => i.StartLine).ToList();
+                GroupedIssues.Add(new FileIssueGroup
+                {
+                    FilePath = group.Key,
+                    FileName = Path.GetFileName(group.Key),
+                    Issues = groupIssues
+                });
+
+                // Update the file tree node with the issue count
+                var node = FindFileNode(group.Key);
+                if (node != null)
+                {
+                    node.IssueCount = groupIssues.Count;
+                }
             }
         }
     }
+
+    private static string GetSeverityLabel(Severity severity) => severity switch
+    {
+        Severity.Critical => "🔴 Critical",
+        Severity.Error => "🟠 Error",
+        Severity.Warning => "🟢 Warning",
+        _ => "ℹ️ Info"
+    };
 
     /// <summary>
     /// Adds newly found issues to the results and updates the UI.
@@ -535,7 +622,7 @@ public partial class AnalysisViewModel : ObservableObject
             CompletedAt = DateTimeOffset.UtcNow,
             Diff = new GitDiff { BaseRef = "unknown", HeadRef = "unknown", Files = new List<FileChange>() },
             Issues = new List<Issue>(),
-            AppliedRules = new List<Rule>(),
+            AppliedProfiles = new List<ReviewProfile>(),
             IsSuccess = true
         };
 
@@ -551,7 +638,7 @@ public partial class AnalysisViewModel : ObservableObject
             CompletedAt = result.CompletedAt,
             Diff = result.Diff,
             Issues = allIssues,
-            AppliedRules = result.AppliedRules,
+            AppliedProfiles = result.AppliedProfiles,
             IsSuccess = result.IsSuccess,
             ErrorMessage = result.ErrorMessage
         };
@@ -719,7 +806,7 @@ public class AnalysisLogEntry
     public string? LlmPrompt { get; init; }
     public string? LlmResponse { get; init; }
     public string? FilePath { get; init; }
-    public string? RuleId { get; init; }
+    public string? ProfileId { get; init; }
     public int? LinesAdded { get; init; }
     public int? LinesDeleted { get; init; }
     
@@ -738,4 +825,15 @@ public enum AnalysisLogLevel
     Success,
     Warning,
     Error
+}
+
+/// <summary>
+/// How issues are grouped in the results view.
+/// </summary>
+public enum IssueGroupingMode
+{
+    /// <summary>Group issues by file path.</summary>
+    ByFile,
+    /// <summary>Group issues by severity level.</summary>
+    BySeverity
 }

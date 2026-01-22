@@ -158,6 +158,15 @@ public sealed partial class AnalysisPage : Page
         isFile ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
+    /// Gets the background brush for a file in the current batch.
+    /// </summary>
+    public static Brush GetBatchHighlightBrush(bool isInCurrentBatch) =>
+        isInCurrentBatch 
+            ? new SolidColorBrush(Color.FromArgb(50, 100, 149, 237))  // Light blue highlight
+            : new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));        // Transparent
+
+
+    /// <summary>
     /// Gets the opacity for a wizard step.
     /// </summary>
     public static double GetStepOpacity(WizardStep current, int step) => 
@@ -193,18 +202,18 @@ public sealed partial class AnalysisPage : Page
 
     private async void OnNextClicked(object sender, RoutedEventArgs e)
     {
-        if (Wizard.CurrentStep == WizardStep.Rules)
+        if (Wizard.CurrentStep == WizardStep.Profiles)
         {
             // The Next button on step 3 transition to Step 4 (Analysis)
-            // But we need to actually TRIGER the analysis on AnalysisViewModel
+            // But we need to actually TRIGGER the analysis on AnalysisViewModel
             var diff = Wizard.GetFilteredDiff();
-            var ruleIds = Wizard.GetSelectedRuleIds();
+            var profileIds = Wizard.GetSelectedProfileIds();
             
             // Advance wizard to step 4
             Wizard.CurrentStep = WizardStep.Analysis;
 
             // Trigger analysis
-            await ViewModel.RunAnalysisAsync(diff, ruleIds, default);
+            await ViewModel.RunAnalysisAsync(diff, profileIds, default);
         }
         else if (Wizard.CurrentStep == WizardStep.Analysis)
         {

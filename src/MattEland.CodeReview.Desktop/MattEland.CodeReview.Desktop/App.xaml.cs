@@ -97,7 +97,7 @@ public partial class App : Application
                 services.AddTransient<HomeViewModel>();
                 services.AddSingleton<AnalysisViewModel>();
                 services.AddSingleton<WizardViewModel>();
-                services.AddTransient<RulesViewModel>();
+                services.AddTransient<ProfilesViewModel>();
                 services.AddTransient<SettingsViewModel>();
 
                 // Add navigation service

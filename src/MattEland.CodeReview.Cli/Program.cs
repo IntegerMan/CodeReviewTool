@@ -2,7 +2,7 @@ using System.Text.Json;
 using MattEland.CodeReview.Core;
 using MattEland.CodeReview.Core.Analysis;
 using MattEland.CodeReview.Core.Models;
-using MattEland.CodeReview.Core.Rules;
+using MattEland.CodeReview.Core.Profiles;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -45,7 +45,7 @@ public class Program
             return command switch
             {
                 "analyze" => await RunAnalyze(args, serviceProvider, configuration),
-                "rules" => RunListRules(args, serviceProvider),
+                "profiles" or "rules" => RunListProfiles(args, serviceProvider),
                 "version" => RunVersion(),
                 "help" or "--help" or "-h" => RunHelp(),
                 _ => RunHelp()
@@ -92,52 +92,26 @@ public class Program
         return result.CriticalCount > 0 ? 2 : (result.ErrorCount > 0 ? 1 : 0);
     }
 
-    private static int RunListRules(string[] args, IServiceProvider serviceProvider)
+    private static int RunListProfiles(string[] args, IServiceProvider serviceProvider)
     {
-        var ruleProvider = serviceProvider.GetRequiredService<IRuleProvider>();
-        var language = GetArgValue(args, "--language", "-l");
+        var profileProvider = serviceProvider.GetRequiredService<IProfileProvider>();
         
-        var rules = string.IsNullOrEmpty(language) 
-            ? ruleProvider.GetAllRules()
-            : ruleProvider.GetRulesByLanguage(language);
+        var profiles = profileProvider.GetAllProfiles();
 
         Console.WriteLine();
-        Console.WriteLine("Available Rules:");
+        Console.WriteLine("Available Review Profiles:");
         Console.WriteLine(new string('=', 80));
         
-        foreach (var group in rules.GroupBy(r => r.Language).OrderBy(g => g.Key))
+        foreach (var profile in profiles.OrderBy(p => p.Name))
         {
             Console.WriteLine();
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine($"  {group.Key.ToUpperInvariant()}");
+            Console.Write($"  {profile.Name}");
             Console.ResetColor();
-            
-            foreach (var categoryGroup in group.GroupBy(r => r.Category).OrderBy(g => g.Key))
-            {
-                Console.ForegroundColor = ConsoleColor.DarkCyan;
-                Console.WriteLine($"    {categoryGroup.Key}/");
-                Console.ResetColor();
-                
-                foreach (var rule in categoryGroup.OrderBy(r => r.Name))
-                {
-                    var severityColor = rule.DefaultSeverity switch
-                    {
-                        Severity.Critical => ConsoleColor.Red,
-                        Severity.Error => ConsoleColor.DarkRed,
-                        Severity.Warning => ConsoleColor.Yellow,
-                        _ => ConsoleColor.Gray
-                    };
-                    
-                    Console.Write("      ");
-                    Console.ForegroundColor = severityColor;
-                    Console.Write($"[{rule.DefaultSeverity.ToString()[0]}]");
-                    Console.ResetColor();
-                    Console.WriteLine($" {rule.Name}");
-                    Console.ForegroundColor = ConsoleColor.DarkGray;
-                    Console.WriteLine($"          {rule.Description}");
-                    Console.ResetColor();
-                }
-            }
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.WriteLine($" ({profile.Id})");
+            Console.ResetColor();
+            Console.WriteLine($"    {profile.Description}");
         }
         Console.WriteLine();
         return 0;
@@ -160,7 +134,7 @@ public class Program
 
             Commands:
               analyze     Analyze git diff for code issues
-              rules       List available analysis rules
+              profiles    List available review profiles
               version     Show version information
               help        Show this help message
 
@@ -171,14 +145,14 @@ public class Program
               --output, -o <format>   Output format: console, json, or markdown (default: console)
               --verbose, -v           Show detailed output
 
-            Rules Options:
-              --language, -l <lang>   Filter rules by language (csharp, sql)
+            Profiles Options:
+              (none currently)
 
             Examples:
               codereview analyze
               codereview analyze --base develop --output json
               codereview analyze --files "src/Service.cs,scripts/migration.sql"
-              codereview rules --language sql
+              codereview profiles
             """);
         return 0;
     }
@@ -258,11 +232,11 @@ public class Program
                 
                 foreach (var issue in group.OrderBy(i => i.StartLine))
                 {
-                    Console.WriteLine($"- **{issue.RuleId}** [{issue.Severity}] (Line {issue.StartLine})");
+                    Console.WriteLine($"- **{issue.ProfileId}** [{issue.Severity}] (Line {issue.StartLine}-{issue.EndLine})");
                     Console.WriteLine($"  - {issue.Message}");
-                    if (!string.IsNullOrEmpty(issue.Suggestion))
+                    if (!string.IsNullOrEmpty(issue.Reasoning))
                     {
-                        Console.WriteLine($"  - Suggestion: {issue.Suggestion}");
+                        Console.WriteLine($"  - Reasoning: {issue.Reasoning}");
                     }
                     Console.WriteLine();
                 }
@@ -284,7 +258,7 @@ public class Program
         Console.WriteLine($"  Review ID: {result.Id}");
         Console.WriteLine($"  Duration:  {result.Duration?.TotalSeconds:F2}s");
         Console.WriteLine($"  Files:     {result.Diff.Files.Count}");
-        Console.WriteLine($"  Rules:     {result.AppliedRules.Count}");
+        Console.WriteLine($"  Profiles:  {result.AppliedProfiles.Count}");
         Console.WriteLine();
         
         Console.Write("  Summary: ");
@@ -342,10 +316,10 @@ public class Program
                     var lineInfo = issue.StartLine.HasValue ? $"[{issue.StartLine}] " : "";
                     Console.WriteLine($"{lineInfo}{issue.Message}");
                     
-                    if (verbose && !string.IsNullOrEmpty(issue.Suggestion))
+                    if (verbose && !string.IsNullOrEmpty(issue.Reasoning))
                     {
                         Console.ForegroundColor = ConsoleColor.DarkGreen;
-                        Console.WriteLine($"      -> {issue.Suggestion}");
+                        Console.WriteLine($"      -> {issue.Reasoning}");
                         Console.ResetColor();
                     }
                 }

@@ -44,9 +44,9 @@ public class NavigationService : INavigationService
     public bool NavigateToAnalysis() => Navigate<AnalysisPage>();
 
     /// <summary>
-    /// Navigates to the Rules page.
+    /// Navigates to the Profiles page.
     /// </summary>
-    public bool NavigateToRules() => Navigate<RulesPage>();
+    public bool NavigateToProfiles() => Navigate<ProfilesPage>();
 
     /// <summary>
     /// Navigates to the Settings page.
@@ -82,7 +82,7 @@ public interface INavigationService
     bool Navigate<TPage>(object parameter) where TPage : Page;
     bool NavigateToHome();
     bool NavigateToAnalysis();
-    bool NavigateToRules();
+    bool NavigateToProfiles();
     bool NavigateToSettings();
     bool GoBack();
     bool CanGoBack { get; }

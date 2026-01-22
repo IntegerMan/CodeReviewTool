@@ -180,49 +180,33 @@
                                    Style="{ThemeResource SubtitleTextBlockStyle}"/>
                         
                         <StackPanel Spacing="12">
-                            <!-- Total Rules -->
+                            <!-- Total Profiles -->
                             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="16">
                                 <StackPanel Spacing="4">
-                                    <TextBlock Text="{x:Bind ViewModel.TotalRules, Mode=OneWay}"
+                                    <TextBlock Text="{x:Bind ViewModel.TotalProfiles, Mode=OneWay}"
                                                Style="{ThemeResource TitleLargeTextBlockStyle}"
                                                Foreground="{ThemeResource SystemAccentColor}"/>
-                                    <TextBlock Text="Total Rules"
+                                    <TextBlock Text="Total Reviewers"
                                                Style="{ThemeResource CaptionTextBlockStyle}"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </Border>
 
-                            <!-- Enabled Rules -->
+                            <!-- Enabled Profiles -->
                             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     Padding="16">
                                 <StackPanel Spacing="4">
-                                    <TextBlock Text="{x:Bind ViewModel.EnabledRules, Mode=OneWay}"
+                                    <TextBlock Text="{x:Bind ViewModel.EnabledProfiles, Mode=OneWay}"
                                                Style="{ThemeResource TitleLargeTextBlockStyle}"
                                                Foreground="{ThemeResource SystemFillColorSuccessBrush}"/>
-                                    <TextBlock Text="Enabled Rules"
-                                               Style="{ThemeResource CaptionTextBlockStyle}"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Languages -->
-                            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    Padding="16">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="{x:Bind ViewModel.SupportedLanguages, Mode=OneWay}"
-                                               Style="{ThemeResource TitleLargeTextBlockStyle}"
-                                               Foreground="{ThemeResource SystemFillColorAttentionBrush}"/>
-                                    <TextBlock Text="Languages"
+                                    <TextBlock Text="Enabled Reviewers"
                                                Style="{ThemeResource CaptionTextBlockStyle}"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>

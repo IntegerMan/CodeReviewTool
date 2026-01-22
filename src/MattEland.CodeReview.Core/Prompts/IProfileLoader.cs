@@ -3,33 +3,33 @@ using MattEland.CodeReview.Core.Models;
 namespace MattEland.CodeReview.Core.Prompts;
 
 /// <summary>
-/// Loads and parses .prompt files.
+/// Loads and parses .profile files.
 /// </summary>
-public interface IPromptLoader
+public interface IProfileLoader
 {
     /// <summary>
-    /// Loads a rule from a .prompt file.
+    /// Loads a review profile from a .profile file.
     /// </summary>
-    /// <param name="filePath">Path to the .prompt file.</param>
+    /// <param name="filePath">Path to the .profile file.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The loaded rule with prompt content.</returns>
-    Task<Rule> LoadFromFileAsync(string filePath, CancellationToken cancellationToken = default);
+    /// <returns>The loaded profile with prompt content.</returns>
+    Task<ReviewProfile> LoadFromFileAsync(string filePath, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Loads a rule from embedded resource content.
+    /// Loads a review profile from embedded resource content.
     /// </summary>
     /// <param name="resourceName">Name of the embedded resource.</param>
-    /// <param name="content">The content of the prompt file.</param>
-    /// <returns>The loaded rule with prompt content.</returns>
-    Rule LoadFromContent(string resourceName, string content);
+    /// <param name="content">The content of the profile file.</param>
+    /// <returns>The loaded profile with prompt content.</returns>
+    ReviewProfile LoadFromContent(string resourceName, string content);
 
     /// <summary>
     /// Renders a prompt template with the given context.
     /// </summary>
-    /// <param name="rule">The rule containing the prompt template.</param>
+    /// <param name="profile">The profile containing the prompt template.</param>
     /// <param name="context">The context values to substitute.</param>
     /// <returns>The rendered prompt ready for the LLM.</returns>
-    string RenderPrompt(Rule rule, PromptContext context);
+    string RenderPrompt(ReviewProfile profile, PromptContext context);
 }
 
 /// <summary>
@@ -57,3 +57,4 @@ public sealed record PromptContext
     /// </summary>
     public IDictionary<string, string> AdditionalValues { get; init; } = new Dictionary<string, string>();
 }
+

@@ -153,6 +153,57 @@ public sealed partial class DiffLineMapper
     }
 
     /// <summary>
+    /// Extracts a code snippet from diff content around a given source line number.
+    /// This is a fallback when full file content is unavailable.
+    /// </summary>
+    /// <param name="diffContent">The git diff content.</param>
+    /// <param name="lineNumber">The 1-based line number to center on.</param>
+    /// <param name="contextLines">Number of lines before and after to include.</param>
+    public static string? ExtractSnippetFromDiff(string? diffContent, int lineNumber, int contextLines = 3)
+    {
+        if (string.IsNullOrEmpty(diffContent) || lineNumber < 1)
+            return null;
+
+        // Parse the diff to find lines and their source line numbers
+        var mapper = Parse(diffContent);
+        
+        // Build a map of source line numbers to content
+        var lineMap = new Dictionary<int, (string Content, DiffLineType Type)>();
+        foreach (var line in mapper._lines.Where(l => l.SourceLineNumber.HasValue))
+        {
+            lineMap[line.SourceLineNumber!.Value] = (line.Content, line.Type);
+        }
+
+        if (lineMap.Count == 0)
+            return null;
+
+        // Find the range to display
+        var startLine = Math.Max(1, lineNumber - contextLines);
+        var endLine = lineNumber + contextLines;
+
+        var snippetLines = new List<string>();
+        var foundAnyLine = false;
+
+        for (var i = startLine; i <= endLine; i++)
+        {
+            if (lineMap.TryGetValue(i, out var lineInfo))
+            {
+                foundAnyLine = true;
+                var prefix = i == lineNumber ? "→ " : "  ";
+                var typeIndicator = lineInfo.Type switch
+                {
+                    DiffLineType.Added => "+",
+                    DiffLineType.Deleted => "-",
+                    _ => " "
+                };
+                snippetLines.Add($"{i,4}: {prefix}{typeIndicator} {lineInfo.Content}");
+            }
+        }
+
+        return foundAnyLine ? string.Join('\n', snippetLines) : null;
+    }
+
+    /// <summary>
     /// Gets all lines that were added in this diff.
     /// </summary>
     public IEnumerable<DiffLine> GetAddedLines() => 

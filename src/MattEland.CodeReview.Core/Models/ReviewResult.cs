@@ -1,5 +1,3 @@
-using System.ComponentModel;
-
 namespace MattEland.CodeReview.Core.Models;
 
 /// <summary>
@@ -33,9 +31,9 @@ public sealed record ReviewResult
     public required IReadOnlyList<Issue> Issues { get; init; }
 
     /// <summary>
-    /// The rules that were applied during the review.
+    /// The review profiles that were applied during the review.
     /// </summary>
-    public required IReadOnlyList<Rule> AppliedRules { get; init; }
+    public required IReadOnlyList<ReviewProfile> AppliedProfiles { get; init; }
 
     /// <summary>
     /// Whether the review completed successfully.
@@ -61,10 +59,10 @@ public sealed record ReviewResult
         => Issues.Where(i => i.Severity == severity);
 
     /// <summary>
-    /// Gets issues filtered by rule ID.
+    /// Gets issues filtered by profile ID.
     /// </summary>
-    public IEnumerable<Issue> GetIssuesByRule(string ruleId)
-        => Issues.Where(i => string.Equals(i.RuleId, ruleId, StringComparison.OrdinalIgnoreCase));
+    public IEnumerable<Issue> GetIssuesByProfile(string profileId)
+        => Issues.Where(i => string.Equals(i.ProfileId, profileId, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// Gets issues for a specific file.

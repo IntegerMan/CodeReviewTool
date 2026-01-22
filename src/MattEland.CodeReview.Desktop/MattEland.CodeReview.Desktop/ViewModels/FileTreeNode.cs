@@ -36,6 +36,12 @@ public partial class FileTreeNode : ObservableObject
     [ObservableProperty]
     private int _linesDeleted;
 
+    /// <summary>
+    /// Whether this file is part of the current batch being analyzed.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isInCurrentBatch;
+
     public ObservableCollection<FileTreeNode> Children { get; } = new();
 
     public FileTreeNode? Parent { get; set; }

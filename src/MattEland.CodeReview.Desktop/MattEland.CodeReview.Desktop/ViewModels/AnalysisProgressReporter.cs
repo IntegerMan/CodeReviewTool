@@ -16,7 +16,7 @@ public sealed class AnalysisProgressReporter : IAnalysisProgressReporter
     private FileTreeNode? _currentFileNode;
     
     // Track pending requests to pair with responses
-    private readonly Dictionary<string, (string FilePath, string RuleId, string Request)> _pendingRequests = new();
+    private readonly Dictionary<string, (string FilePath, string ProfileId, string Request)> _pendingRequests = new();
 
     public AnalysisProgressReporter(AnalysisViewModel viewModel)
     {
@@ -34,7 +34,7 @@ public sealed class AnalysisProgressReporter : IAnalysisProgressReporter
         _fileTree = fileTree;
     }
 
-    public void ReportProgress(int currentFile, int totalFiles, int currentRule, int totalRules, string filePath, string ruleId)
+    public void ReportProgress(int currentFile, int totalFiles, int currentRule, int totalRules, string filePath, string profileId)
     {
         _completedWorkItems++;
         
@@ -42,7 +42,7 @@ public sealed class AnalysisProgressReporter : IAnalysisProgressReporter
         _viewModel.ProgressValue = _completedWorkItems;
         _viewModel.CompletedWorkItems = _completedWorkItems;
         _viewModel.CurrentFileName = Path.GetFileName(filePath);
-        _viewModel.CurrentRuleId = ruleId;
+        _viewModel.CurrentProfileId = profileId;
 
         // Update File Node Status
         if (_currentFileNode != null && (_currentFileNode.FullPath != filePath && _currentFileNode.FullPath.Replace('\\', '/') != filePath.Replace('\\', '/')))
@@ -66,7 +66,7 @@ public sealed class AnalysisProgressReporter : IAnalysisProgressReporter
         var fileName = Path.GetFileName(filePath);
         var remaining = _totalWorkItems - _completedWorkItems;
         _viewModel.AddLog(
-            $"[{progressPercent}%] Analyzing {fileName} with rule {ruleId} ({remaining} remaining)",
+            $"[{progressPercent}%] Analyzing {fileName} with {profileId} ({remaining} remaining)",
             AnalysisLogLevel.Info);
         
         // Mark as finished if this is the very last work item
@@ -76,20 +76,20 @@ public sealed class AnalysisProgressReporter : IAnalysisProgressReporter
         }
     }
 
-    public void ReportLlmRequest(string filePath, string ruleId, string request)
+    public void ReportLlmRequest(string filePath, string profileId, string request)
     {
         // Store the request to pair with the response later
-        var key = $"{filePath}|{ruleId}";
-        _pendingRequests[key] = (filePath, ruleId, request);
+        var key = $"{filePath}|{profileId}";
+        _pendingRequests[key] = (filePath, profileId, request);
         
         var fileName = Path.GetFileName(filePath);
-        _viewModel.AddLog($"→ LLM Request for {fileName} ({ruleId})", AnalysisLogLevel.Info);
+        _viewModel.AddLog($"→ LLM Request for {fileName} ({profileId})", AnalysisLogLevel.Info);
     }
 
-    public void ReportLlmResponse(string filePath, string ruleId, string response)
+    public void ReportLlmResponse(string filePath, string profileId, string response)
     {
         var fileName = Path.GetFileName(filePath);
-        var key = $"{filePath}|{ruleId}";
+        var key = $"{filePath}|{profileId}";
         
         // Try to get the paired request
         string? request = null;
@@ -101,18 +101,18 @@ public sealed class AnalysisProgressReporter : IAnalysisProgressReporter
         
         // Create a detailed log entry with both request and response
         _viewModel.AddLog(
-            $"← LLM Response for {fileName} ({ruleId})",
+            $"← LLM Response for {fileName} ({profileId})",
             AnalysisLogLevel.Success,
             filePath,
-            ruleId,
+            profileId,
             request,
             response);
     }
 
-    public void ReportJsonParsingError(string filePath, string ruleId, string error, string response)
+    public void ReportJsonParsingError(string filePath, string profileId, string error, string response)
     {
         var fileName = Path.GetFileName(filePath);
-        var key = $"{filePath}|{ruleId}";
+        var key = $"{filePath}|{profileId}";
         
         // Try to get the paired request
         string? request = null;
@@ -123,16 +123,77 @@ public sealed class AnalysisProgressReporter : IAnalysisProgressReporter
         }
         
         _viewModel.AddLog(
-            $"✗ JSON Parsing Error for {fileName} ({ruleId}): {error}",
+            $"✗ JSON Parsing Error for {fileName} ({profileId}): {error}",
             AnalysisLogLevel.Error,
             filePath,
-            ruleId,
+            profileId,
             request,
             response);
     }
 
-    public void ReportIssues(string filePath, string ruleId, IEnumerable<Issue> issues)
+    public void ReportIssues(string filePath, string profileId, IEnumerable<Issue> issues)
     {
         _viewModel.AddIssues(issues);
+    }
+
+    public void ReportBatchStart(int batchIndex, int totalBatches, IEnumerable<FileChange> files, string groupingReason)
+    {
+        // Clear previous batch highlights
+        ClearBatchHighlights();
+        
+        // Update ViewModel batch properties
+        _viewModel.CurrentBatchIndex = batchIndex;
+        _viewModel.TotalBatches = totalBatches;
+        _viewModel.CurrentBatchGroupingReason = groupingReason;
+        _viewModel.CurrentBatchFiles.Clear();
+        
+        var fileList = files.ToList();
+        foreach (var file in fileList)
+        {
+            _viewModel.CurrentBatchFiles.Add(Path.GetFileName(file.Path));
+            
+            // Mark file nodes as in current batch
+            var node = _viewModel.FindFileNode(file.Path);
+            if (node != null)
+            {
+                node.IsInCurrentBatch = true;
+                node.Status = FileAnalysisStatus.Running;
+            }
+        }
+        
+        // Log the batch start with file list
+        var fileNames = string.Join(", ", fileList.Select(f => Path.GetFileName(f.Path)));
+        _viewModel.AddLog(
+            $"📦 Batch {batchIndex}/{totalBatches}: {groupingReason} ({fileList.Count} files: {fileNames})",
+            AnalysisLogLevel.Info);
+    }
+
+    private void ClearBatchHighlights()
+    {
+        // Recursively clear IsInCurrentBatch for all nodes
+        void ClearNode(FileTreeNode node)
+        {
+            if (node.IsInCurrentBatch)
+            {
+                node.IsInCurrentBatch = false;
+                // Mark completed batches as finished
+                if (node.IsFile && node.Status == FileAnalysisStatus.Running)
+                {
+                    node.Status = FileAnalysisStatus.Finished;
+                }
+            }
+            foreach (var child in node.Children)
+            {
+                ClearNode(child);
+            }
+        }
+        
+        if (_fileTree != null)
+        {
+            foreach (var node in _fileTree)
+            {
+                ClearNode(node);
+            }
+        }
     }
 }

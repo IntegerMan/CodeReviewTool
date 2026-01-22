@@ -1,0 +1,52 @@
+  MattEland.CodeReview.Core -> D:\Dev\CodeReviewTool\src\MattEland.CodeReview.Core\bin\Debug\net10.0\MattEland.CodeReview.Core.dll
+  MattEland.CodeReview.Core.Tests -> D:\Dev\CodeReviewTool\tests\MattEland.CodeReview.Core.Tests\bin\Debug\net10.0\MattEland.CodeReview.Core.Tests.dll
+Test run for D:\Dev\CodeReviewTool\tests\MattEland.CodeReview.Core.Tests\bin\Debug\net10.0\MattEland.CodeReview.Core.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.1 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+D:\Dev\CodeReviewTool\tests\MattEland.CodeReview.Core.Tests\bin\Debug\net10.0\MattEland.CodeReview.Core.Tests.dll
+[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.4+50e68bbb8b (64-bit .NET 10.0.0)
+[xUnit.net 00:00:00.06]   Discovering: MattEland.CodeReview.Core.Tests
+[xUnit.net 00:00:00.09]   Discovered:  MattEland.CodeReview.Core.Tests
+[xUnit.net 00:00:00.10]   Starting:    MattEland.CodeReview.Core.Tests
+  Passed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.Parse_WithDeletions_MapsAddedLinesOnly [7 ms]
+  Passed MattEland.CodeReview.Core.Tests.Models.ReviewResultTests.GetIssuesByProfile_FiltersCorrectly [7 ms]
+  Passed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.ExtractSnippetFromDiff_HandlesMissingLines [1 ms]
+  Passed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.Parse_EmptyDiff_ReturnsEmptyMapper [1 ms]
+  Passed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.ExtractCodeSnippet_ReturnsNull_WhenContentIsNull [< 1 ms]
+  Passed MattEland.CodeReview.Core.Tests.Models.ReviewResultTests.GetSeveritySummary_CountsCorrectly [3 ms]
+  Passed MattEland.CodeReview.Core.Tests.Models.ReviewResultTests.GetIssuesForFile_FiltersCorrectly [< 1 ms]
+  Passed MattEland.CodeReview.Core.Tests.Models.ReviewResultTests.CriticalCount_ReturnsCorrectCount [< 1 ms]
+[xUnit.net 00:00:00.16]     MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.ExtractSnippetFromDiff_ReturnsSnippet [FAIL]
+[xUnit.net 00:00:00.16]       Assert.Contains() Failure: Sub-string not found
+[xUnit.net 00:00:00.16]       String:    "   2:     line 2\r"
+[xUnit.net 00:00:00.16]       Not found: "2:    line 2"
+[xUnit.net 00:00:00.17]       Stack Trace:
+[xUnit.net 00:00:00.17]         D:\Dev\CodeReviewTool\tests\MattEland.CodeReview.Core.Tests\Git\DiffLineMapperTests.cs(239,0): at MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.ExtractSnippetFromDiff_ReturnsSnippet()
+[xUnit.net 00:00:00.17]            at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+[xUnit.net 00:00:00.17]            at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+[xUnit.net 00:00:00.17]   Finished:    MattEland.CodeReview.Core.Tests
+  Passed MattEland.CodeReview.Core.Tests.Models.ReviewResultTests.Duration_CalculatesCorrectly [< 1 ms]
+  Failed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.ExtractSnippetFromDiff_ReturnsSnippet [2 ms]
+  Error Message:
+   Assert.Contains() Failure: Sub-string not found
+String:    "   2:     line 2\r"
+Not found: "2:    line 2"
+  Stack Trace:
+     at MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.ExtractSnippetFromDiff_ReturnsSnippet() in D:\Dev\CodeReviewTool\tests\MattEland.CodeReview.Core.Tests\Git\DiffLineMapperTests.cs:line 239
+   at System.Reflection.MethodBaseInvoker.InterpretedInvoke_Method(Object obj, IntPtr* args)
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)
+  Passed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.Parse_MultipleHunks_MapsAllCorrectly [< 1 ms]
+  Passed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.Parse_SingleHunk_MapsLinesCorrectly [< 1 ms]
+  Passed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.ExtractCodeSnippet_ReturnsContextLines [6 ms]
+  Passed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.ExtractCodeSnippet_HandlesEdgeCase_FirstLines [< 1 ms]
+  Passed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.ExtractCodeSnippet_HandlesEdgeCase_LastLines [< 1 ms]
+  Passed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.ExtractCodeSnippet_ReturnsNull_WhenLineOutOfRange [< 1 ms]
+  Passed MattEland.CodeReview.Core.Tests.Git.DiffLineMapperTests.GetSourceLineNumber_ReturnsNullForDeletedLines [< 1 ms]
+
+Test Run Failed.
+Total tests: 17
+     Passed: 16
+     Failed: 1
+ Total time: 0.5165 Seconds

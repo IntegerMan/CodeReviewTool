@@ -1,5 +1,3 @@
-using System.ComponentModel;
-
 namespace MattEland.CodeReview.Core.Models;
 
 /// <summary>
@@ -13,9 +11,9 @@ public sealed record Issue
     public required string Id { get; init; }
 
     /// <summary>
-    /// The rule that detected this issue.
+    /// The review profile that detected this issue.
     /// </summary>
-    public required string RuleId { get; init; }
+    public required string ProfileId { get; init; }
 
     /// <summary>
     /// The file path where the issue was found.
@@ -38,14 +36,14 @@ public sealed record Issue
     public required Severity Severity { get; init; }
 
     /// <summary>
-    /// Human-readable message describing the issue.
+    /// Human-readable message describing the issue (comments from the reviewer).
     /// </summary>
     public required string Message { get; init; }
 
     /// <summary>
-    /// Suggested fix or improvement.
+    /// AI reasoning explaining why this is an issue.
     /// </summary>
-    public string? Suggestion { get; init; }
+    public string? Reasoning { get; init; }
 
     /// <summary>
     /// The code snippet related to this issue.
@@ -53,12 +51,7 @@ public sealed record Issue
     public string? CodeSnippet { get; init; }
 
     /// <summary>
-    /// Additional context or explanation from the LLM.
+    /// Error message explaining why a code snippet could not be extracted.
     /// </summary>
-    public string? Explanation { get; init; }
-
-    /// <summary>
-    /// Confidence score from the LLM (0.0 to 1.0).
-    /// </summary>
-    public double? Confidence { get; init; }
+    public string? CodeSnippetError { get; init; }
 }

@@ -55,7 +55,7 @@ public sealed partial class MainPage : Page
         {
             "HomePage" => typeof(HomePage),
             "AnalysisPage" => typeof(AnalysisPage),
-            "RulesPage" => typeof(RulesPage),
+            "ProfilesPage" => typeof(ProfilesPage),
             _ => null
         };
 

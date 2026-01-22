@@ -14,5 +14,5 @@ global using MattEland.CodeReview.Core.Analysis;
 global using MattEland.CodeReview.Core.Configuration;
 global using MattEland.CodeReview.Core.Git;
 global using MattEland.CodeReview.Core.Models;
-global using MattEland.CodeReview.Core.Rules;
+global using MattEland.CodeReview.Core.Profiles;
 global using ApplicationExecutionState = Windows.ApplicationModel.Activation.ApplicationExecutionState;

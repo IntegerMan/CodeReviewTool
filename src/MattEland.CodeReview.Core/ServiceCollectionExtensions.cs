@@ -1,8 +1,8 @@
 using MattEland.CodeReview.Core.Analysis;
 using MattEland.CodeReview.Core.Configuration;
 using MattEland.CodeReview.Core.Git;
+using MattEland.CodeReview.Core.Profiles;
 using MattEland.CodeReview.Core.Prompts;
-using MattEland.CodeReview.Core.Rules;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,13 +29,12 @@ public static class ServiceCollectionExtensions
         
         // Core services
         services.AddSingleton<IGitService, GitService>();
-        services.AddSingleton<IPromptLoader, PromptLoader>();
+        services.AddSingleton<IProfileLoader, ProfileLoader>();
         
-        // Rule system
-        services.AddSingleton<IRuleSource, EmbeddedRuleSource>();
-        services.AddSingleton<IRuleSource, FileSystemRuleSource>();
-        services.AddSingleton<RuleProvider>();
-        services.AddSingleton<IRuleProvider>(sp => sp.GetRequiredService<RuleProvider>());
+        // Profile system
+        services.AddSingleton<IProfileSource, FileSystemProfileSource>();
+        services.AddSingleton<ProfileProvider>();
+        services.AddSingleton<IProfileProvider>(sp => sp.GetRequiredService<ProfileProvider>());
         
         // AI client factory
         services.AddSingleton<ChatClientFactory>();
@@ -47,7 +46,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Initializes the code review system by loading rules from all sources.
+    /// Initializes the code review system by loading profiles from all sources.
     /// </summary>
     /// <param name="services">The service provider.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -55,7 +54,7 @@ public static class ServiceCollectionExtensions
         this IServiceProvider services,
         CancellationToken cancellationToken = default)
     {
-        var ruleProvider = services.GetRequiredService<RuleProvider>();
-        await ruleProvider.InitializeAsync(cancellationToken);
+        var profileProvider = services.GetRequiredService<ProfileProvider>();
+        await profileProvider.InitializeAsync(cancellationToken);
     }
 }

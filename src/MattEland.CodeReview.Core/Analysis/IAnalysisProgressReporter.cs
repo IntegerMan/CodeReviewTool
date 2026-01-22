@@ -48,4 +48,14 @@ public interface IAnalysisProgressReporter
     /// <param name="ruleId">ID of the rule being applied.</param>
     /// <param name="issues">The detected issues.</param>
     void ReportIssues(string filePath, string ruleId, IEnumerable<Models.Issue> issues);
+
+    /// <summary>
+    /// Reports the start of a new batch analysis.
+    /// </summary>
+    /// <param name="batchIndex">Current batch index (1-based).</param>
+    /// <param name="totalBatches">Total number of batches.</param>
+    /// <param name="files">Files in this batch.</param>
+    /// <param name="groupingReason">Why these files were grouped together.</param>
+    void ReportBatchStart(int batchIndex, int totalBatches, IEnumerable<Models.FileChange> files, string groupingReason);
 }
+
